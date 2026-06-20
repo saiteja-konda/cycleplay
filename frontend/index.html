@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>CyclePlay</title>
+  <link rel="manifest" href="/manifest.json" />
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #13131a;
+      --card:      #1c1c26;
+      --border:    #2a2a38;
+      --accent:    #ff6b2b;
+      --accent2:   #ff9a5c;
+      --green:     #30d158;
+      --blue:      #0a84ff;
+      --text:      #ffffff;
+      --text2:     #8e8e99;
+      --text3:     #4a4a5a;
+      --safe-top:  env(safe-area-inset-top, 0px);
+      --safe-bot:  env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ── SCREEN WRAPPER ── */
+    .app {
+      width: 100%;
+      max-width: 430px;
+      height: 100svh;
+      margin: 0 auto;
+      position: relative;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    /* ── VIEWS ── */
+    .view {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      padding-top: calc(var(--safe-top) + 56px);
+      padding-bottom: calc(var(--safe-bot) + 16px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: translateY(12px);
+    }
+    .view.active {
+      opacity: 1;
+      pointer-events: all;
+      transform: translateY(0);
+    }
+
+    /* ── STATUS BAR ── */
+    .statusbar {
+      position: absolute;
+      top: 0;
+      left: 0; right: 0;
+      height: calc(var(--safe-top) + 44px);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding: 0 20px 8px;
+      z-index: 100;
+      background: linear-gradient(to bottom, var(--bg) 70%, transparent);
+    }
+    .statusbar-time { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
+    .statusbar-icons { display: flex; gap: 6px; align-items: center; }
+    .statusbar-icons svg { width: 16px; height: 16px; fill: var(--text); }
+
+    /* ── NAV TABS ── */
+    .nav {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: calc(var(--safe-bot) + 72px);
+      background: rgba(10,10,15,0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-around;
+      padding-top: 10px;
+      z-index: 100;
+    }
+    .nav-item {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 4px; cursor: pointer; opacity: 0.4;
+      transition: opacity 0.2s;
+      padding: 4px 16px;
+    }
+    .nav-item.active { opacity: 1; }
+    .nav-item svg { width: 24px; height: 24px; }
+    .nav-item span { font-size: 10px; font-weight: 500; letter-spacing: 0.2px; }
+    .nav-item.active span { color: var(--accent); }
+    .nav-item.active svg { stroke: var(--accent); }
+
+    /* ══════════════════════════════
+       HOME SCREEN
+    ══════════════════════════════ */
+    #home {
+      padding-left: 20px; padding-right: 20px;
+      overflow-y: auto;
+    }
+
+    .home-greeting {
+      font-size: 13px; font-weight: 500;
+      color: var(--text2); letter-spacing: 0.5px;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .home-title {
+      font-size: 28px; font-weight: 700;
+      letter-spacing: -0.8px; margin-bottom: 24px;
+    }
+
+    /* Weekly ring summary */
+    .weekly-card {
+      background: var(--card);
+      border-radius: 20px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+      display: flex; gap: 20px; align-items: center;
+    }
+    .weekly-ring-wrap { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+    .weekly-ring-wrap svg { transform: rotate(-90deg); }
+    .weekly-ring-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    .weekly-ring-center span:first-child { font-size: 18px; font-weight: 700; }
+    .weekly-ring-center span:last-child { font-size: 9px; color: var(--text2); font-weight: 500; }
+    .weekly-stats { flex: 1; }
+    .weekly-stats h3 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .weekly-stats p { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+    .weekly-bars { display: flex; gap: 5px; align-items: flex-end; height: 32px; }
+    .wbar {
+      flex: 1; border-radius: 3px; background: var(--border);
+      position: relative; overflow: hidden;
+    }
+    .wbar-fill {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      border-radius: 3px;
+      background: linear-gradient(to top, var(--accent), var(--accent2));
+    }
+    .wbar.today .wbar-fill { background: linear-gradient(to top, var(--accent), #ffb347); }
+
+    /* Start ride button */
+    .start-ride-btn {
+      width: 100%; padding: 18px;
+      background: linear-gradient(135deg, var(--accent), #ff4500);
+      border: none; border-radius: 18px;
+      color: white; font-size: 17px; font-weight: 700;
+      letter-spacing: -0.3px;
+      cursor: pointer; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      box-shadow: 0 8px 32px rgba(255,107,43,0.35);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .start-ride-btn:active { transform: scale(0.98); box-shadow: 0 4px 16px rgba(255,107,43,0.2); }
+    .start-ride-btn svg { width: 20px; height: 20px; fill: white; }
+
+    /* Recent rides */
+    .section-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .section-title { font-size: 17px; font-weight: 700; letter-spacing: -0.4px; }
+    .section-link { font-size: 13px; color: var(--accent); font-weight: 500; cursor: pointer; }
+
+    .ride-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px;
+      margin-bottom: 10px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .ride-card:active { background: #222230; }
+    .ride-card-top {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; margin-bottom: 12px;
+    }
+    .ride-card-date { font-size: 12px; color: var(--text2); font-weight: 500; }
+    .ride-card-badge {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.5px;
+      padding: 3px 8px; border-radius: 20px;
+      background: rgba(255,107,43,0.15); color: var(--accent);
+    }
+    .ride-card-dist { font-size: 26px; font-weight: 700; letter-spacing: -0.8px; }
+    .ride-card-dist span { font-size: 13px; font-weight: 500; color: var(--text2); margin-left: 2px; }
+    .ride-card-stats {
+      display: flex; gap: 0;
+      border-top: 1px solid var(--border);
+      margin-top: 12px; padding-top: 12px;
+    }
+    .ride-stat { flex: 1; }
+    .ride-stat:not(:last-child) { border-right: 1px solid var(--border); margin-right: 12px; padding-right: 12px; }
+    .ride-stat-val { font-size: 14px; font-weight: 600; }
+    .ride-stat-label { font-size: 10px; color: var(--text2); font-weight: 500; margin-top: 1px; text-transform: uppercase; letter-spacing: 0.3px; }
+
+    /* ══════════════════════════════
+       RIDE SCREEN
+    ══════════════════════════════ */
+    #ride {
+      padding: 0; overflow: hidden;
+      background: var(--bg);
+    }
+
+    .ride-header {
+      position: absolute;
+      top: calc(var(--safe-top) + 56px);
+      left: 20px; right: 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      z-index: 10;
+    }
+    .ride-status-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 12px;
+    }
+    .ride-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse-dot 1.5s infinite;
+    }
+    .ride-dot.paused { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: none; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .ride-status-text { font-size: 12px; font-weight: 600; color: var(--text2); }
+    .ride-time-display { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* Speedometer */
+    .speedometer-wrap {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -62%);
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .speedo-svg-wrap { position: relative; }
+    .speedo-svg-wrap svg { display: block; }
+    .speedo-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding-top: 20px;
+    }
+    .speedo-value {
+      font-size: 72px; font-weight: 300;
+      letter-spacing: -4px; line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .speedo-unit {
+      font-size: 14px; font-weight: 500;
+      color: var(--text2); letter-spacing: 1px;
+      text-transform: uppercase; margin-top: 4px;
+    }
+    .speedo-label {
+      font-size: 11px; font-weight: 600; color: var(--accent);
+      letter-spacing: 2px; text-transform: uppercase; margin-top: 2px;
+    }
+
+    /* Metrics row */
+    .metrics-row {
+      position: absolute;
+      bottom: calc(var(--safe-bot) + 180px);
+      left: 20px; right: 20px;
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+    .metric-chip {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 12px;
+      text-align: center;
+    }
+    .metric-chip-val { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+    .metric-chip-label { font-size: 9px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.8px; margin-top: 2px; }
+    .metric-chip-sub { font-size: 9px; color: var(--text3); margin-top: 1px; }
+
+    /* Controls */
+    .ride-controls {
+      position: absolute;
+      bottom: calc(var(--safe-bot) + 88px);
+      left: 0; right: 0;
+      display: flex; align-items: center; justify-content: center;
+      gap: 24px;
+    }
+    .ctrl-btn {
+      border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; transition: transform 0.15s;
+    }
+    .ctrl-btn:active { transform: scale(0.93); }
+    .ctrl-secondary {
+      width: 56px; height: 56px;
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    .ctrl-secondary svg { width: 22px; height: 22px; stroke: var(--text2); fill: none; stroke-width: 2; }
+    .ctrl-primary {
+      width: 80px; height: 80px;
+      background: linear-gradient(135deg, var(--accent), #ff4500);
+      box-shadow: 0 8px 32px rgba(255,107,43,0.4);
+    }
+    .ctrl-primary svg { width: 32px; height: 32px; fill: white; }
+    .ctrl-stop {
+      width: 56px; height: 56px;
+      background: rgba(255,59,48,0.15);
+      border: 1px solid rgba(255,59,48,0.3);
+    }
+    .ctrl-stop svg { width: 20px; height: 20px; fill: #ff3b30; }
+
+    /* ══════════════════════════════
+       SUMMARY SCREEN
+    ══════════════════════════════ */
+    #summary {
+      padding-left: 20px; padding-right: 20px;
+      overflow-y: auto;
+    }
+
+    #ride-details {
+      overflow-y: auto;
+      padding-bottom: calc(var(--safe-bot) + 80px);
+    }
+
+    .summary-hero {
+      text-align: center; padding: 8px 0 28px;
+    }
+    .summary-emoji { font-size: 48px; margin-bottom: 8px; }
+    .summary-congrats { font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 1px; text-transform: uppercase; }
+    .summary-dist-big { font-size: 64px; font-weight: 300; letter-spacing: -3px; margin: 4px 0; }
+    .summary-dist-big span { font-size: 22px; color: var(--text2); font-weight: 400; }
+    .summary-date { font-size: 13px; color: var(--text2); }
+
+    .summary-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px; margin-bottom: 20px;
+    }
+    .summary-tile {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px;
+    }
+    .summary-tile.wide { grid-column: span 2; }
+    .summary-tile-icon { font-size: 20px; margin-bottom: 8px; }
+    .summary-tile-val { font-size: 24px; font-weight: 700; letter-spacing: -0.8px; }
+    .summary-tile-val span { font-size: 13px; font-weight: 400; color: var(--text2); }
+    .summary-tile-label { font-size: 11px; color: var(--text2); font-weight: 500; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Speed timeline */
+    .speed-chart-wrap {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px; margin-bottom: 20px;
+    }
+    .speed-chart-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .speed-chart { position: relative; height: 60px; }
+    .speed-chart svg { width: 100%; height: 100%; }
+
+    .summary-done-btn {
+      width: 100%; padding: 18px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      color: var(--text); font-size: 17px; font-weight: 600;
+      cursor: pointer; margin-bottom: 10px;
+      transition: background 0.15s;
+    }
+    .summary-done-btn:active { background: #222230; }
+
+    /* ══════════════════════════════
+       HISTORY SCREEN
+    ══════════════════════════════ */
+    #history {
+      padding-left: 20px; padding-right: 20px;
+      overflow-y: auto;
+    }
+
+    .history-header { margin-bottom: 20px; }
+    .history-title { font-size: 28px; font-weight: 700; letter-spacing: -0.8px; }
+    .history-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+
+    .history-stats-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px; margin-bottom: 24px;
+    }
+    .history-stat-tile {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 12px; text-align: center;
+    }
+    .history-stat-val { font-size: 24px; font-weight: 700; color: var(--text1); margin-bottom: 4px; }
+    .history-stat-label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Custom Alert Modal */
+    .alert-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+      z-index: 9999;
+    }
+    .alert-overlay.show { opacity: 1; pointer-events: all; }
+    .alert-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 24px; width: 90%; max-width: 320px;
+      text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      transform: translateY(20px) scale(0.95); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .alert-overlay.show .alert-box { transform: translateY(0) scale(1); }
+    .alert-icon { font-size: 32px; margin-bottom: 12px; }
+    .alert-title { color: var(--text1); margin-bottom: 8px; font-size: 20px; font-weight: 700; }
+    .alert-message { color: var(--text2); margin-bottom: 24px; font-size: 15px; line-height: 1.4; }
+    .alert-btn {
+      background: var(--accent); color: white; border: none;
+      padding: 12px 24px; border-radius: 12px; font-size: 16px; font-weight: 600;
+      width: 100%; cursor: pointer; transition: opacity 0.2s;
+    }
+    .alert-btn:active { opacity: 0.8; }
+
+    .month-header {
+      font-size: 13px; font-weight: 600; color: var(--text2);
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-bottom: 10px; margin-top: 4px;
+    }
+
+    /* ══════════════════════════════
+       ANIMATIONS
+    ══════════════════════════════ */
+    @keyframes needle-sweep {
+      0%   { stroke-dashoffset: 220; }
+      100% { stroke-dashoffset: var(--target-offset); }
+    }
+
+    .ring-animate {
+      animation: needle-sweep 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+
+    /* Speed number count-up feel */
+    @keyframes count-up {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .speedo-value { animation: count-up 0.4s ease; }
+
+    /* Paused overlay */
+    .paused-banner {
+      position: absolute;
+      top: calc(var(--safe-top) + 110px);
+      left: 50%; transform: translateX(-50%);
+      background: rgba(255,107,43,0.15);
+      border: 1px solid rgba(255,107,43,0.3);
+      border-radius: 20px; padding: 6px 16px;
+      font-size: 12px; font-weight: 700; color: var(--accent);
+      letter-spacing: 1.5px; text-transform: uppercase;
+      display: none;
+    }
+    .paused-banner.show { display: block; }
+
+    /* Scrollbar hide */
+    ::-webkit-scrollbar { display: none; }
+
+    /* ══════════════════════════════
+       LANDSCAPE LAYOUT
+    ══════════════════════════════ */
+    @media (orientation: landscape) {
+
+      /* Full-width in landscape — no portrait cap */
+      .app {
+        max-width: 100%;
+        height: 100svh;
+      }
+
+      /* Nav moves to left side as a vertical rail */
+      .nav {
+        top: 0; bottom: 0;
+        left: 0; right: auto;
+        width: 64px;
+        height: 100%;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        border-top: none;
+        border-right: 1px solid var(--border);
+        padding-top: 0;
+        gap: 8px;
+      }
+      .nav-item { padding: 12px 0; }
+      .nav-item span { display: none; }
+
+      /* Status bar hides in landscape — phone has its own */
+      .statusbar { display: none; }
+
+      /* All views shift right of the nav rail */
+      .view {
+        left: 64px;
+        padding-top: 12px;
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      /* ── LANDSCAPE RIDE SCREEN ── */
+      #ride {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr auto;
+        align-items: center;
+        gap: 0;
+        padding-top: 8px;
+        padding-bottom: 8px;
+      }
+
+      /* Ride header spans full top */
+      .ride-header {
+        position: relative;
+        top: auto; left: auto; right: auto;
+        grid-column: 1 / -1;
+        margin-bottom: 0;
+        padding: 0 8px 8px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      /* Speedometer — left column */
+      .speedometer-wrap {
+        position: relative;
+        top: auto; left: auto;
+        transform: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        padding: 8px 0;
+      }
+
+      .speedo-svg-wrap svg {
+        width: 200px;
+        height: 200px;
+      }
+
+      .speedo-value { font-size: 54px; }
+
+      /* Right column — metrics + controls stacked */
+      .metrics-row {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        padding: 0 12px 0 0;
+      }
+
+      .metric-chip { padding: 10px 8px; }
+      .metric-chip-val { font-size: 17px; }
+
+      /* Controls — below metrics on right */
+      .ride-controls {
+        position: relative;
+        padding: 10px 12px 0 0;
+        justify-content: flex-end;
+        gap: 16px;
+      }
+
+      .ctrl-primary { width: 64px; height: 64px; }
+      .ctrl-primary svg { width: 26px; height: 26px; }
+      .ctrl-secondary, .ctrl-stop { width: 48px; height: 48px; }
+
+      /* Right column wrapper — flex column */
+      #ride-right {
+        grid-column: 2;
+        grid-row: 2 / 4;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding-right: 12px;
+        gap: 12px;
+      }
+
+      /* Paused banner repositioned */
+      .paused-banner {
+        top: 60px;
+      }
+
+      /* ── LANDSCAPE HOME ── */
+      #home {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto 1fr;
+        column-gap: 20px;
+        overflow-y: auto;
+      }
+      .home-greeting { grid-column: 1 / -1; }
+      .home-title    { grid-column: 1 / -1; margin-bottom: 16px; font-size: 22px; }
+      .weekly-card   { grid-column: 1; grid-row: 3; margin-bottom: 0; align-self: start; }
+      .start-ride-btn { grid-column: 2; grid-row: 3; align-self: start; height: 56px; margin-bottom: 0; }
+      .section-header { grid-column: 1 / -1; margin-top: 16px; }
+      .ride-card { break-inside: avoid; }
+
+      /* ── LANDSCAPE SUMMARY ── */
+      #summary {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 20px;
+        overflow-y: auto;
+      }
+      .summary-hero  { grid-column: 1 / -1; padding-bottom: 16px; }
+      .summary-grid  { grid-column: 1; }
+      .speed-chart-wrap { grid-column: 2; align-self: start; }
+      .summary-done-btn { grid-column: 1 / -1; }
+
+      /* ── LANDSCAPE HISTORY ── */
+      #history {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 20px;
+        overflow-y: auto;
+      }
+      .history-header      { grid-column: 1 / -1; }
+      .history-stats-row   { grid-column: 1 / -1; }
+      .month-header        { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- STATUS BAR: time only — phone's own status bar shows real network/battery -->
+  <div class="statusbar">
+    <span class="statusbar-time" id="clock">12:00 AM</span>
+  </div>
+
+  <!-- ═══════ HOME VIEW ═══════ -->
+  <div class="view active" id="home">
+    <p class="home-greeting" id="home-greeting">Good evening</p>
+    <h1 class="home-title">Let's ride 🚴</h1>
+
+    <!-- Weekly ring -->
+    <div class="weekly-card">
+      <div class="weekly-ring-wrap">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border)" stroke-width="7"/>
+          <circle id="weekly-ring-arc" cx="40" cy="40" r="34" fill="none" stroke="url(#ringGrad)" stroke-width="7"
+            stroke-dasharray="213.6" stroke-dashoffset="213.6" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ff6b2b"/>
+              <stop offset="100%" stop-color="#ffb347"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="weekly-ring-center">
+          <span id="weekly-ride-count">0</span>
+          <span>rides</span>
+        </div>
+      </div>
+      <div class="weekly-stats">
+        <h3>This Week</h3>
+        <p id="weekly-summary-text">0 km · 0h 0m</p>
+        <div class="weekly-bars" id="weekly-bars-container"></div>
+      </div>
+    </div>
+
+    <!-- Start button -->
+    <button class="start-ride-btn" onclick="goToRide()">
+      <svg viewBox="0 0 20 20"><path d="M4 3l13 7-13 7V3z"/></svg>
+      Start Ride
+    </button>
+
+    <!-- Recent rides -->
+    <div class="section-header">
+      <span class="section-title">Recent Rides</span>
+      <span class="section-link" onclick="showView('history')">See All</span>
+    </div>
+    <div id="home-rides-container"></div>
+  </div>
+
+  <!-- ═══════ RIDE VIEW ═══════ -->
+  <div class="view" id="ride">
+
+    <!-- Header -->
+    <div class="ride-header" style="justify-content:center; position:relative;">
+      <span class="ride-time-display" id="rideTimer">--:--</span>
+      <button id="mapToggleBtn" onclick="toggleMap()" style="position:absolute; right: 20px; background:var(--surface); border:1px solid var(--border); color:var(--text1); padding:8px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; z-index:1000;">
+        <span id="mapToggleIcon">🗺️</span> <span id="mapToggleText">Map</span>
+      </button>
+    </div>
+
+    <!-- Paused banner -->
+    <div class="paused-banner" id="pausedBanner">AUTO PAUSED</div>
+
+    <!-- Main Display Area (Speedometer OR Map) -->
+    <div id="rideMainDisplay" style="position:relative; width:100%; flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+
+      <!-- Speedometer -->
+      <div class="speedometer-wrap" id="speedoWrap" style="transition: opacity 0.3s; width:100%; display:flex; justify-content:center; align-items:center;">
+        <div class="speedo-svg-wrap">
+          <svg width="280" height="280" viewBox="0 0 280 280">
+            <defs>
+              <linearGradient id="speedGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#ff6b2b"/>
+                <stop offset="100%" stop-color="#ffb347"/>
+              </linearGradient>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+            <!-- Outer track -->
+            <circle cx="140" cy="140" r="120" fill="none" stroke="#1c1c26" stroke-width="2"/>
+            <!-- Speed arc track -->
+            <path d="M 26 200 A 120 120 0 1 1 254 200"
+              fill="none" stroke="var(--border)" stroke-width="12" stroke-linecap="round"/>
+            <!-- Speed arc fill -->
+            <path id="speedArc" d="M 26 200 A 120 120 0 1 1 254 200"
+              fill="none" stroke="url(#speedGrad)" stroke-width="12" stroke-linecap="round"
+              stroke-dasharray="566" stroke-dashoffset="566"
+              filter="url(#glow)"
+              style="transition: stroke-dashoffset 0.8s cubic-bezier(0.34,1.2,0.64,1)"/>
+            <!-- Tick marks -->
+            <g stroke="var(--border)" stroke-width="1.5">
+              <line x1="140" y1="22" x2="140" y2="34" transform="rotate(-135 140 140)"/>
+              <line x1="140" y1="22" x2="140" y2="30" transform="rotate(-90 140 140)"/>
+              <line x1="140" y1="22" x2="140" y2="34" transform="rotate(-45 140 140)"/>
+              <line x1="140" y1="22" x2="140" y2="30" transform="rotate(0 140 140)"/>
+              <line x1="140" y1="22" x2="140" y2="34" transform="rotate(45 140 140)"/>
+              <line x1="140" y1="22" x2="140" y2="30" transform="rotate(90 140 140)"/>
+              <line x1="140" y1="22" x2="140" y2="34" transform="rotate(135 140 140)"/>
+            </g>
+            <!-- Speed labels -->
+            <text x="30" y="215" fill="var(--text3)" font-size="10" font-family="Inter" text-anchor="middle">0</text>
+            <text x="250" y="215" fill="var(--text3)" font-size="10" font-family="Inter" text-anchor="middle">60</text>
+            <text x="140" y="32" fill="var(--text3)" font-size="10" font-family="Inter" text-anchor="middle">30</text>
+          </svg>
+          <div class="speedo-center">
+            <div class="speedo-value" id="speedVal">0</div>
+            <div class="speedo-unit">km/h</div>
+            <div class="speedo-label" id="speedLabel">READY</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Map -->
+      <div id="liveMapWrap" style="position:absolute; top:30px; left:20px; right:20px; bottom:20px; border-radius:20px; overflow:hidden; opacity:0; pointer-events:none; transition: opacity 0.3s; z-index:1;">
+        <div id="liveMap" style="width:100%; height:100%;"></div>
+      </div>
+    </div>
+
+    <!-- Right column: metrics + controls (used by landscape grid) -->
+    <div id="ride-right">
+
+      <!-- Metrics -->
+      <div class="metrics-row">
+        <div class="metric-chip">
+          <div class="metric-chip-val" id="metricDist">—</div>
+          <div class="metric-chip-label">Distance</div>
+          <div class="metric-chip-sub">km</div>
+        </div>
+        <div class="metric-chip">
+          <div class="metric-chip-val" id="metricAvg">—</div>
+          <div class="metric-chip-label">Avg Speed</div>
+          <div class="metric-chip-sub">km/h</div>
+        </div>
+        <div class="metric-chip">
+          <div class="metric-chip-val" id="metricMax">—</div>
+          <div class="metric-chip-label">Max Speed</div>
+          <div class="metric-chip-sub">km/h</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="ride-controls">
+        <button class="ctrl-btn ctrl-primary" id="startBtn" onclick="startRideBtn()" style="background:var(--accent);box-shadow:0 0 20px rgba(255,107,43,0.4);">
+          <svg viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button class="ctrl-btn ctrl-stop" onclick="endRide()" style="display:none;">
+          <svg viewBox="0 0 20 20"><rect x="4" y="4" width="12" height="12" rx="2"/></svg>
+        </button>
+      </div>
+
+    </div><!-- /ride-right -->
+
+  </div>
+
+  <!-- ═══════ SUMMARY VIEW ═══════ -->
+  <div class="view" id="summary">
+
+    <div class="summary-hero">
+      <div class="summary-emoji">🏅</div>
+      <div class="summary-congrats">Ride Complete</div>
+      <div class="summary-dist-big" id="sum-distance">0.0 <span>km</span></div>
+      <div class="summary-date" id="sum-date">—</div>
+    </div>
+
+    <!-- Summary Map -->
+    <div id="summaryMapWrap" style="padding: 0 20px; margin-bottom: 20px;">
+      <div id="summaryMap" style="width:100%; height:200px; border-radius:16px; z-index:1;"></div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-tile">
+        <div class="summary-tile-icon">⏱</div>
+        <div class="summary-tile-val" id="sum-total-time">—</div>
+        <div class="summary-tile-label">Total Time</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-icon">🚴</div>
+        <div class="summary-tile-val" id="sum-moving-time">—</div>
+        <div class="summary-tile-label">Moving Time</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-icon">⚡️</div>
+        <div class="summary-tile-val" id="sum-avg-speed">—<span> km/h</span></div>
+        <div class="summary-tile-label">Avg Speed</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-icon">🔥</div>
+        <div class="summary-tile-val" id="sum-max-speed">—<span> km/h</span></div>
+        <div class="summary-tile-label">Max Speed</div>
+      </div>
+      <div class="summary-tile wide">
+        <div class="summary-tile-icon">🛑</div>
+        <div class="summary-tile-val" id="sum-pauses">0 <span>stops</span></div>
+        <div class="summary-tile-label">Pauses Detected</div>
+      </div>
+    </div>
+
+    <!-- Speed chart -->
+    <div class="speed-chart-wrap">
+      <div class="speed-chart-title">Speed over time</div>
+      <div class="speed-chart">
+        <svg id="sum-speed-chart" viewBox="0 0 300 60" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#ff6b2b" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="#ff6b2b" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0 50 C20 50 25 20 40 22 S60 30 70 10 S90 5 100 8 S120 25 130 30 S145 55 155 55 S170 20 185 15 S210 8 225 12 S245 30 260 28 S280 10 300 15 L300 60 L0 60Z"
+            fill="url(#chartGrad)"/>
+          <path d="M0 50 C20 50 25 20 40 22 S60 30 70 10 S90 5 100 8 S120 25 130 30 S145 55 155 55 S170 20 185 15 S210 8 225 12 S245 30 260 28 S280 10 300 15"
+            fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <button class="summary-done-btn" onclick="showView('home')">Done</button>
+
+  </div>
+
+  <!-- ═══════ RIDE DETAILS VIEW ═══════ -->
+  <div class="view" id="ride-details">
+    <div class="ride-header" style="position:relative; top:0; justify-content:space-between; padding: 20px; padding-top: 40px;">
+      <button onclick="showView('history')" style="background:none; border:none; color:var(--text2); font-size:16px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:600;">
+        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M15 18l-6-6 6-6"/></svg> Back
+      </button>
+      <button id="deleteRideBtn" style="background:none; border:none; color:#ff4d4d; cursor:pointer; display:flex; align-items:center; padding:8px;">
+        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
+    </div>
+
+    <div class="summary-hero" style="margin-top:0; padding-top:0;">
+      <div class="summary-congrats">Ride Details</div>
+      <div class="summary-dist-big" id="det-distance">0.0 <span>km</span></div>
+      <div class="summary-date" id="det-date">—</div>
+    </div>
+
+    <div id="detailsMapWrap" style="padding: 0 20px; margin-bottom: 20px;">
+      <div id="detailsMap" style="width:100%; height:250px; border-radius:16px; z-index:1;"></div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-tile">
+        <div class="summary-tile-icon">⏱</div>
+        <div class="summary-tile-val" id="det-total-time">—</div>
+        <div class="summary-tile-label">Total Time</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-icon">🚴</div>
+        <div class="summary-tile-val" id="det-moving-time">—</div>
+        <div class="summary-tile-label">Moving Time</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-icon">⚡️</div>
+        <div class="summary-tile-val" id="det-avg-speed">—<span> km/h</span></div>
+        <div class="summary-tile-label">Avg Speed</div>
+      </div>
+      <div class="summary-tile">
+        <div class="summary-tile-icon">🔥</div>
+        <div class="summary-tile-val" id="det-max-speed">—<span> km/h</span></div>
+        <div class="summary-tile-label">Max Speed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ HISTORY VIEW ═══════ -->
+  <div class="view" id="history">
+
+    <div class="history-header">
+      <h1 class="history-title">All Rides</h1>
+      <p class="history-sub">Your complete cycling log</p>
+    </div>
+
+    <div class="history-stats-row">
+      <div class="history-stat-tile">
+        <div class="history-stat-val">247</div>
+        <div class="history-stat-label">Total km</div>
+      </div>
+      <div class="history-stat-tile">
+        <div class="history-stat-val">14</div>
+        <div class="history-stat-label">Rides</div>
+      </div>
+      <div class="history-stat-tile">
+        <div class="history-stat-val">11h</div>
+        <div class="history-stat-label">Moving</div>
+      </div>
+    </div>
+
+    <div id="history-rides-container"></div>
+  </div>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <div class="nav-item active" id="nav-home" onclick="showView('home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>Home</span>
+    </div>
+    <div class="nav-item" id="nav-ride" onclick="goToRide()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
+        <path d="M6 18l3-8h6l2 4"/><path d="M9 10l2 4h4"/>
+        <circle cx="15" cy="5" r="1.5"/>
+      </svg>
+      <span>Ride</span>
+    </div>
+    <div class="nav-item" id="nav-history" onclick="showView('history')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span>History</span>
+    </div>
+  </nav>
+
+</div><!-- /app -->
+
+  <!-- ═══════ CUSTOM ALERT MODAL ═══════ -->
+  <div id="alertModal" class="alert-overlay">
+    <div class="alert-box">
+      <div class="alert-icon" id="alertIcon">⚠️</div>
+      <h3 class="alert-title" id="alertTitle">Alert</h3>
+      <p class="alert-message" id="alertMessage">Message goes here</p>
+      <button class="alert-btn" onclick="closeAlert()">Got it</button>
+    </div>
+  </div>
+
+  <!-- ═══════ CUSTOM CONFIRM MODAL ═══════ -->
+  <div id="confirmModal" class="alert-overlay">
+    <div class="alert-box">
+      <div class="alert-icon" id="confirmIcon">🗑️</div>
+      <h3 class="alert-title" id="confirmTitle">Confirm</h3>
+      <p class="alert-message" id="confirmMessage">Message</p>
+      <div style="display:flex; gap:10px; width:100%;">
+        <button class="alert-btn" style="background:var(--border);" onclick="closeConfirm()">Cancel</button>
+        <button class="alert-btn" style="background:var(--accent);" id="confirmActionBtn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>

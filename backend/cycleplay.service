@@ -1,0 +1,13 @@
+[Unit]
+Description=CyclePlay Node.js Backend
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/node /home/pablo/Projects/cycleplay/backend/server.js
+WorkingDirectory=/home/pablo/Projects/cycleplay/backend
+Restart=always
+User=pablo
+Environment=PORT=5100
+
+[Install]
+WantedBy=multi-user.target
