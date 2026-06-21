@@ -9,7 +9,15 @@ CREATE TABLE IF NOT EXISTS rides (
   avg_speed_kmh   REAL,
   max_speed_kmh   REAL,
   pause_count     INTEGER DEFAULT 0,
-  status          TEXT DEFAULT 'active'  -- active | complete | abandoned
+  status          TEXT DEFAULT 'active',  -- active | complete | abandoned
+  username        TEXT DEFAULT 'Guest',
+  name            TEXT,
+  notes           TEXT,
+  rating          INTEGER,
+  photo_url       TEXT,
+  weather_condition TEXT,
+  weather_temp    REAL,
+  weather_wind    REAL
 );
 
 -- One row per GPS point (every 5 seconds)

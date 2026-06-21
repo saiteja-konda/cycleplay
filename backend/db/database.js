@@ -26,6 +26,55 @@ const db = new sqlite3.Database(dbPath, (err) => {
             console.log('Migration successful: added username column.');
           }
         });
+        db.run(`ALTER TABLE rides ADD COLUMN name TEXT`, (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            console.error('Migration error:', err.message);
+          } else if (!err) {
+            console.log('Migration successful: added name column.');
+          }
+        });
+        db.run(`ALTER TABLE rides ADD COLUMN notes TEXT`, (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            console.error('Migration error:', err.message);
+          } else if (!err) {
+            console.log('Migration successful: added notes column.');
+          }
+        });
+        db.run(`ALTER TABLE rides ADD COLUMN rating INTEGER`, (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            console.error('Migration error:', err.message);
+          } else if (!err) {
+            console.log('Migration successful: added rating column.');
+          }
+        });
+        db.run(`ALTER TABLE rides ADD COLUMN photo_url TEXT`, (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            console.error('Migration error:', err.message);
+          } else if (!err) {
+            console.log('Migration successful: added photo_url column.');
+          }
+        });
+        db.run(`ALTER TABLE rides ADD COLUMN weather_condition TEXT`, (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            console.error('Migration error:', err.message);
+          } else if (!err) {
+            console.log('Migration successful: added weather_condition column.');
+          }
+        });
+        db.run(`ALTER TABLE rides ADD COLUMN weather_temp REAL`, (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            console.error('Migration error:', err.message);
+          } else if (!err) {
+            console.log('Migration successful: added weather_temp column.');
+          }
+        });
+        db.run(`ALTER TABLE rides ADD COLUMN weather_wind REAL`, (err) => {
+          if (err && !err.message.includes('duplicate column name')) {
+            console.error('Migration error:', err.message);
+          } else if (!err) {
+            console.log('Migration successful: added weather_wind column.');
+          }
+        });
       }
     });
   }

@@ -31,6 +31,20 @@
       --safe-bot:  env(safe-area-inset-bottom, 0px);
     }
 
+    [data-theme="light"] {
+      --bg:        #f5f5f7;
+      --surface:   #ffffff;
+      --card:      #ffffff;
+      --border:    #e0e0e5;
+      --accent:    #ff6b2b;
+      --accent2:   #ff9a5c;
+      --green:     #30d158;
+      --blue:      #0a84ff;
+      --text:      #1c1c26;
+      --text2:     #6e6e7a;
+      --text3:     #9e9eaa;
+    }
+
     html, body {
       height: 100%;
       background: var(--bg);
@@ -164,6 +178,26 @@
       background: linear-gradient(to top, var(--accent), var(--accent2));
     }
     .wbar.today .wbar-fill { background: linear-gradient(to top, var(--accent), #ffb347); }
+    .weekly-goal-label { font-size: 9px; color: var(--text2); font-weight: 500; margin-top: 2px; }
+    .weekly-goal-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+    .weekly-gear-btn {
+      background: none; border: none; color: var(--text3); cursor: pointer;
+      padding: 4px; display: inline-flex; align-items: center; border-radius: 4px;
+      transition: color 0.2s;
+    }
+    .weekly-gear-btn:hover { color: var(--text); }
+    .weekly-goal-editor { display: inline-flex; align-items: center; gap: 4px; }
+    .weekly-goal-input {
+      width: 60px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font-size: 12px; font-weight: 500;
+      outline: none; font-family: inherit;
+    }
+    .weekly-goal-input:focus { border-color: var(--accent); }
+    .weekly-goal-save {
+      padding: 4px 10px; border-radius: 6px; border: none;
+      background: var(--accent); color: white; font-size: 11px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
 
     /* Start ride button */
     .start-ride-btn {
@@ -380,6 +414,31 @@
     .speed-chart { position: relative; height: 60px; }
     .speed-chart svg { width: 100%; height: 100%; }
 
+    .summary-input {
+      width:100%; padding:12px 14px; border-radius:12px;
+      background:var(--surface); border:1px solid var(--border);
+      color:var(--text); font-size:15px; font-family:inherit; outline:none;
+    }
+    .summary-textarea {
+      width:100%; padding:12px 14px; border-radius:12px;
+      background:var(--surface); border:1px solid var(--border);
+      color:var(--text); font-size:14px; font-family:inherit; outline:none; resize:vertical;
+    }
+    .rating-row { display:flex; gap:12px; justify-content:center; }
+    .rating-btn {
+      font-size:32px; background:none; border:2px solid transparent;
+      border-radius:12px; padding:8px 12px; cursor:pointer;
+      transition: all 0.15s; opacity:0.4;
+    }
+    .rating-btn.selected { opacity:1; border-color:var(--accent); background:rgba(255,107,43,0.1); }
+    .summary-photo-btn, .summary-share-btn {
+      width:100%; padding:12px; border-radius:12px;
+      background:var(--surface); border:1px solid var(--border);
+      color:var(--text); font-size:14px; font-weight:600; cursor:pointer;
+      font-family:inherit; text-align:center;
+    }
+    .summary-photo-btn:active, .summary-share-btn:active { background:var(--border); }
+
     .summary-done-btn {
       width: 100%; padding: 18px;
       background: var(--card);
@@ -479,8 +538,160 @@
     }
     .paused-banner.show { display: block; }
 
+    /* Live marker pulsing dot */
+    .live-marker { background: none !important; border: none !important; }
+    .live-marker-dot {
+      width: 14px; height: 14px; background: #0a84ff; border-radius: 50%;
+      border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3);
+    }
+    .live-marker-pulse {
+      position: absolute; top: -10px; left: -10px;
+      width: 34px; height: 34px; background: rgba(10,132,255,0.3);
+      border-radius: 50%; animation: live-pulse 1.5s infinite;
+    }
+    @keyframes live-pulse {
+      0% { transform: scale(0.8); opacity: 1; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+
+    /* Fit route button */
+    .fit-route-btn {
+      position: absolute; bottom: 10px; right: 10px; z-index: 1000;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 14px; border-radius: 10px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+
     /* Scrollbar hide */
     ::-webkit-scrollbar { display: none; }
+
+    /* ── LIVE DISTANCE CARD ── */
+    .live-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+    .live-card-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .live-card-stats {
+      display: flex;
+      gap: 16px;
+    }
+    .live-stat {
+      flex: 1;
+    }
+    .live-stat-val {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      display: block;
+    }
+    .live-stat-label {
+      font-size: 10px;
+      color: var(--text2);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    /* ── CALENDAR VIEW ── */
+    #calendar {
+      padding-left: 20px; padding-right: 20px;
+      overflow-y: auto;
+    }
+    .cal-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .cal-nav-btn {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); width: 40px; height: 40px;
+      border-radius: 12px; font-size: 22px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .cal-nav-btn:active { background: var(--border); }
+    .cal-month-year { font-size: 18px; font-weight: 700; }
+    .cal-days {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 2px; margin-bottom: 4px;
+    }
+    .cal-days span {
+      text-align: center; font-size: 11px; font-weight: 600;
+      color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 4px 0;
+    }
+    .cal-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 2px; margin-bottom: 20px;
+    }
+    .cal-cell {
+      aspect-ratio: 1; display: flex; align-items: center;
+      justify-content: center; font-size: 13px; font-weight: 500;
+      border-radius: 10px; cursor: pointer;
+      background: var(--card); color: var(--text2);
+      transition: background 0.15s;
+      position: relative;
+    }
+    .cal-cell:active { transform: scale(0.95); }
+    .cal-cell.empty { background: transparent; cursor: default; }
+    .cal-cell.empty:active { transform: none; }
+    .cal-cell.today { border: 1px solid var(--accent); }
+    .cal-cell.selected { background: var(--accent); color: white; }
+    .cal-cell.l1 { background: rgba(255,107,43,0.1); }
+    .cal-cell.l2 { background: rgba(255,107,43,0.2); }
+    .cal-cell.l3 { background: rgba(255,107,43,0.35); }
+    .cal-cell.l4 { background: rgba(255,107,43,0.55); }
+    .cal-cell.l5 { background: rgba(255,107,43,0.75); }
+    .cal-day-rides {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px; margin-bottom: 20px;
+    }
+    .cal-day-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .cal-chart-section {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px; margin-bottom: 20px;
+    }
+    .cal-section-title { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .cal-bar-chart {
+      display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 8px;
+    }
+    .cal-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; position: relative; }
+    .cal-bar {
+      width: 100%; border-radius: 4px 4px 0 0;
+      background: linear-gradient(to top, var(--accent), var(--accent2));
+      min-height: 2px; transition: height 0.3s ease;
+      cursor: pointer;
+    }
+    .cal-bar.current-month { background: linear-gradient(to top, var(--accent), #ffb347); }
+    .cal-bar-label { font-size: 9px; color: var(--text3); margin-top: 4px; font-weight: 500; }
+    .cal-bar-val { font-size: 9px; color: var(--text2); font-weight: 600; position: absolute; top: -14px; }
+    .cal-year-totals {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px; margin-bottom: 20px;
+    }
+    .cal-year-stat {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px; text-align: center;
+    }
+    .cal-year-stat-val { font-size: 22px; font-weight: 700; }
+    .cal-year-stat-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+    .offline-banner {
+      position: absolute; top: 0; left: 0; right: 0;
+      background: rgba(255,107,43,0.9); color: white;
+      text-align: center; padding: 6px 12px; font-size: 12px; font-weight: 600;
+      z-index: 200; backdrop-filter: blur(8px);
+    }
 
     /* ══════════════════════════════
        LANDSCAPE LAYOUT
@@ -613,6 +824,7 @@
       .home-greeting { grid-column: 1 / -1; }
       .home-title    { grid-column: 1 / -1; margin-bottom: 16px; font-size: 22px; }
       .weekly-card   { grid-column: 1; grid-row: 3; margin-bottom: 0; align-self: start; }
+      .live-card     { grid-column: 1 / -1; }
       .start-ride-btn { grid-column: 2; grid-row: 3; align-self: start; height: 56px; margin-bottom: 0; }
       .section-header { grid-column: 1 / -1; margin-top: 16px; }
       .ride-card { break-inside: avoid; }
@@ -639,15 +851,50 @@
       .history-header      { grid-column: 1 / -1; }
       .history-stats-row   { grid-column: 1 / -1; }
       .month-header        { grid-column: 1 / -1; }
+
+      /* ── LANDSCAPE RIDE DETAILS ── */
+      #ride-details {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 20px;
+        overflow-y: auto;
+      }
+      #ride-details .summary-hero { grid-column: 1 / -1; }
+      #ride-details .summary-grid { grid-column: 1; }
+      #ride-details #detailsMapWrap { grid-column: 2; grid-row: 2; align-self: start; }
+      #ride-details #detName { grid-column: 1 / -1; }
+      #ride-details #detNotes { grid-column: 1 / -1; }
+      #ride-details #detRating { grid-column: 1 / -1; }
+      #ride-details #detPhotoWrap { grid-column: 1 / -1; }
+      #ride-details #editRideBtn { grid-column: 1 / -1; }
+      #ride-details #editRideSection { grid-column: 1 / -1; }
+
+      /* ── LANDSCAPE CALENDAR ── */
+      #calendar {
+        padding-left: 20px; padding-right: 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 20px;
+        overflow-y: auto;
+      }
+      .cal-nav { grid-column: 1 / -1; }
+      .cal-days { grid-column: 1 / -1; }
+      .cal-grid { grid-column: 1 / -1; }
+      .cal-day-rides { grid-column: 1; }
+      .cal-chart-section { grid-column: 1; }
+      .cal-year-totals { grid-column: 2; grid-row: 5 / 7; align-self: start; }
     }
   </style>
 </head>
 <body>
 <div class="app">
 
+  <div id="offlineBanner" class="offline-banner" style="display:none;">📡 You're offline — showing cached data</div>
+
   <!-- STATUS BAR: time only — phone's own status bar shows real network/battery -->
   <div class="statusbar">
     <span class="statusbar-time" id="clock">12:00 AM</span>
+    <button id="themeToggle" style="background:none;border:none;color:var(--text2);cursor:pointer;display:flex;align-items:center;padding:4px"></button>
   </div>
 
   <!-- ═══════ HOME VIEW ═══════ -->
@@ -672,12 +919,41 @@
         <div class="weekly-ring-center">
           <span id="weekly-ride-count">0</span>
           <span>rides</span>
+          <span id="weekly-goal-text" class="weekly-goal-label"></span>
         </div>
       </div>
       <div class="weekly-stats">
         <h3>This Week</h3>
         <p id="weekly-summary-text">0 km · 0h 0m</p>
         <div class="weekly-bars" id="weekly-bars-container"></div>
+        <div class="weekly-goal-row">
+          <button id="weeklyGoalGear" class="weekly-gear-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </button>
+          <div id="weeklyGoalEditor" class="weekly-goal-editor" style="display:none">
+            <input type="number" id="weeklyGoalInput" class="weekly-goal-input" value="50" min="1" max="500">
+            <button id="weeklyGoalSave" class="weekly-goal-save">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live card -->
+    <div id="liveCard" class="live-card" style="display:none;">
+      <div class="live-card-header">Active Ride</div>
+      <div class="live-card-stats">
+        <div class="live-stat">
+          <span class="live-stat-val" id="liveDist">0.00</span>
+          <span class="live-stat-label">km</span>
+        </div>
+        <div class="live-stat">
+          <span class="live-stat-val" id="liveTime">--:--</span>
+          <span class="live-stat-label">time</span>
+        </div>
+        <div class="live-stat">
+          <span class="live-stat-val" id="liveAvg">--</span>
+          <span class="live-stat-label">avg km/h</span>
+        </div>
       </div>
     </div>
 
@@ -762,6 +1038,11 @@
 
       <!-- Live Map -->
       <div id="liveMapWrap" style="position:absolute; top:30px; left:20px; right:20px; bottom:20px; border-radius:20px; overflow:hidden; opacity:0; pointer-events:none; transition: opacity 0.3s; z-index:1;">
+        <div id="layerSwitcher" style="position:absolute;top:10px;left:10px;z-index:1000;display:flex;gap:4px;background:var(--surface);border-radius:10px;padding:4px;border:1px solid var(--border);">
+          <button class="layer-btn active" data-layer="osm" style="padding:6px 10px;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;background:var(--accent);color:white;">Map</button>
+          <button class="layer-btn" data-layer="cycle" style="padding:6px 10px;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);">Cycle</button>
+          <button class="layer-btn" data-layer="satellite" style="padding:6px 10px;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);">Sat</button>
+        </div>
         <div id="liveMap" style="width:100%; height:100%;"></div>
       </div>
     </div>
@@ -813,8 +1094,9 @@
     </div>
 
     <!-- Summary Map -->
-    <div id="summaryMapWrap" style="padding: 0 20px; margin-bottom: 20px;">
+    <div id="summaryMapWrap" style="position:relative; padding: 0 20px; margin-bottom: 20px;">
       <div id="summaryMap" style="width:100%; height:200px; border-radius:16px; z-index:1;"></div>
+      <button id="fitRouteBtn" class="fit-route-btn" style="display:none;">📍 Fit Route</button>
     </div>
 
     <div class="summary-grid">
@@ -843,6 +1125,52 @@
         <div class="summary-tile-val" id="sum-pauses">0 <span>stops</span></div>
         <div class="summary-tile-label">Pauses Detected</div>
       </div>
+    </div>
+
+    <!-- Weather -->
+    <div id="sumWeather" class="summary-tile wide" style="margin-bottom:10px;display:none;">
+      <div id="sumWeatherContent" style="display:flex;align-items:center;gap:12px;">
+        <span id="sumWeatherIcon" style="font-size:28px;"></span>
+        <div>
+          <div id="sumWeatherLabel" style="font-size:16px;font-weight:600;"></div>
+          <div id="sumWeatherDetail" style="font-size:13px;color:var(--text2);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ride name -->
+    <div class="summary-tile wide" style="margin-bottom:10px;">
+      <input type="text" id="sumName" class="summary-input" placeholder="Name this ride (e.g. Morning commute)" maxlength="100">
+    </div>
+
+    <!-- Ride notes -->
+    <div class="summary-tile wide" style="margin-bottom:10px;">
+      <textarea id="sumNotes" class="summary-textarea" placeholder="Add notes…" rows="3"></textarea>
+    </div>
+
+    <!-- Emoji rating -->
+    <div class="summary-tile wide" style="margin-bottom:10px;">
+      <div class="rating-row">
+        <button class="rating-btn" data-rating="1" onclick="selectRating(1)">😀</button>
+        <button class="rating-btn" data-rating="2" onclick="selectRating(2)">🙂</button>
+        <button class="rating-btn" data-rating="3" onclick="selectRating(3)">😐</button>
+        <button class="rating-btn" data-rating="4" onclick="selectRating(4)">😞</button>
+      </div>
+    </div>
+
+    <!-- Photo capture -->
+    <div class="summary-tile wide" style="margin-bottom:10px;">
+      <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+      <button id="photoBtn" class="summary-photo-btn">📷 Add Photo</button>
+      <div id="photoPreview" style="display:none; margin-top:10px;">
+        <img id="photoImg" style="width:100%; border-radius:12px; max-height:200px; object-fit:cover;">
+        <button id="photoRemoveBtn" style="background:none;border:none;color:#ff4d4d;cursor:pointer;font-size:13px;margin-top:6px;">Remove</button>
+      </div>
+    </div>
+
+    <!-- Share button -->
+    <div class="summary-tile wide" style="margin-bottom:10px;">
+      <button id="shareBtn" class="summary-share-btn">📤 Share</button>
     </div>
 
     <!-- Speed chart -->
@@ -885,8 +1213,9 @@
       <div class="summary-date" id="det-date">—</div>
     </div>
 
-    <div id="detailsMapWrap" style="padding: 0 20px; margin-bottom: 20px;">
+    <div id="detailsMapWrap" style="position:relative; padding: 0 20px; margin-bottom: 20px;">
       <div id="detailsMap" style="width:100%; height:250px; border-radius:16px; z-index:1;"></div>
+      <button id="detFitRouteBtn" class="fit-route-btn" style="display:none;">📍 Fit Route</button>
     </div>
 
     <div class="summary-grid">
@@ -910,6 +1239,36 @@
         <div class="summary-tile-val" id="det-max-speed">—<span> km/h</span></div>
         <div class="summary-tile-label">Max Speed</div>
       </div>
+    </div>
+
+    <div id="detName" style="font-size:20px;font-weight:700;padding:0 20px;margin-bottom:4px;"></div>
+    <div id="detNotes" style="font-size:14px;color:var(--text2);padding:0 20px;margin-bottom:8px;white-space:pre-wrap;"></div>
+    <div id="detRating" style="font-size:28px;padding:0 20px;margin-bottom:12px;"></div>
+    <div id="detPhotoWrap" style="padding:0 20px;margin-bottom:12px;display:none;">
+      <img id="detPhotoImg" style="width:100%;border-radius:12px;max-height:250px;object-fit:cover;cursor:pointer;">
+    </div>
+    <div id="detWeather" style="padding:0 20px;margin-bottom:12px;display:none;">
+      <div style="display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;padding:12px 16px;border:1px solid var(--border);">
+        <span id="detWeatherIcon" style="font-size:24px;"></span>
+        <div>
+          <div id="detWeatherLabel" style="font-size:15px;font-weight:600;"></div>
+          <div id="detWeatherDetail" style="font-size:12px;color:var(--text2);"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:0 20px;margin-bottom:20px;">
+      <button id="editRideBtn" class="summary-done-btn" style="margin-bottom:0;">✏️ Edit</button>
+    </div>
+    <div id="editRideSection" style="display:none;padding:0 20px 20px;">
+      <input type="text" id="editName" class="summary-input" placeholder="Ride name" style="margin-bottom:10px;">
+      <textarea id="editNotes" class="summary-textarea" placeholder="Notes" rows="3" style="margin-bottom:10px;"></textarea>
+      <div class="rating-row" style="margin-bottom:10px;">
+        <button class="rating-btn edit-rating-btn" data-rating="1" onclick="editSelectRating(1)">😀</button>
+        <button class="rating-btn edit-rating-btn" data-rating="2" onclick="editSelectRating(2)">🙂</button>
+        <button class="rating-btn edit-rating-btn" data-rating="3" onclick="editSelectRating(3)">😐</button>
+        <button class="rating-btn edit-rating-btn" data-rating="4" onclick="editSelectRating(4)">😞</button>
+      </div>
+      <button id="saveEditBtn" class="summary-done-btn" style="margin-bottom:0;">💾 Save</button>
     </div>
   </div>
 
@@ -939,6 +1298,33 @@
     <div id="history-rides-container"></div>
   </div>
 
+  <!-- ═══════ CALENDAR VIEW ═══════ -->
+  <div class="view" id="calendar">
+    <div class="cal-nav">
+      <button id="calPrev" class="cal-nav-btn" onclick="calPrevMonth()">‹</button>
+      <span id="calMonthYear" class="cal-month-year">January 2025</span>
+      <button id="calNext" class="cal-nav-btn" onclick="calNextMonth()">›</button>
+    </div>
+
+    <div class="cal-days">
+      <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+    </div>
+
+    <div id="calGrid" class="cal-grid"></div>
+
+    <div id="calDayRides" class="cal-day-rides" style="display:none;">
+      <h4 class="cal-day-title" id="calDayTitle">Rides on Jan 15</h4>
+      <div id="calDayRidesList"></div>
+    </div>
+
+    <div class="cal-chart-section">
+      <h4 class="cal-section-title">Monthly Distance</h4>
+      <div id="calBarChart" class="cal-bar-chart"></div>
+    </div>
+
+    <div id="calYearTotals" class="cal-year-totals"></div>
+  </div>
+
   <!-- NAV -->
   <nav class="nav">
     <div class="nav-item active" id="nav-home" onclick="showView('home')">
@@ -955,6 +1341,20 @@
         <circle cx="15" cy="5" r="1.5"/>
       </svg>
       <span>Ride</span>
+    </div>
+    <div class="nav-item" id="nav-calendar" onclick="showView('calendar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+        <line x1="8" y1="14" x2="8" y2="14" stroke-width="3" stroke-linecap="round"/>
+        <line x1="12" y1="14" x2="12" y2="14" stroke-width="3" stroke-linecap="round"/>
+        <line x1="16" y1="14" x2="16" y2="14" stroke-width="3" stroke-linecap="round"/>
+        <line x1="8" y1="18" x2="8" y2="18" stroke-width="3" stroke-linecap="round"/>
+        <line x1="12" y1="18" x2="12" y2="18" stroke-width="3" stroke-linecap="round"/>
+        <line x1="16" y1="18" x2="16" y2="18" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <span>Calendar</span>
     </div>
     <div class="nav-item" id="nav-history" onclick="showView('history')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">

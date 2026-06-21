@@ -37,9 +37,24 @@ Then open `http://localhost:5100`. No frontend build step — Express serves `fr
 - **GPX distance**: Haversine is calculated on both client (live display) and server (final summary). Client discards GPS jumps > 0.5 km in a single tick.
 - **Weekly goal**: Hardcoded 50 km target in `app.js:renderWeekly`.
 
+## Plan
+
+Detailed development plan at `PLAN.md`. Epics tracked as GitHub issues [#1](https://github.com/saiteja-konda/cycleplay/issues/1)–[#4](https://github.com/saiteja-konda/cycleplay/issues/4).
+
+## Key behavior
+
+- **Weekly goal**: Default 50 km, stored in `localStorage` key `weeklyGoalKm`. Not hardcoded — read dynamically at render time.
+- **Dark mode**: `localStorage` key `theme`. Default respects `prefers-color-scheme`. Toggle via sun/moon button in status bar.
+
+## Conventions
+
+- New frontend feature modules go in `frontend/src/*.js`. Examples: `weather.js`, `voice.js`, `audio.js`, `offline.js`.
+- Each module exports a class or pure functions. No default exports. No framework dependency.
+- Schema migrations go in `backend/db/database.js` as `ALTER TABLE` statements catching `duplicate column` errors (see existing `username` migration pattern).
+- Service worker cache name is versioned (`cycleplay-v13`). Bump when static assets change.
+
 ## Notes
 
 - Express 5 — double-check middleware/route signatures if porting patterns from Express 4.
 - `sqlite3` npm package is the callback-based C binding, not `better-sqlite3`. The repo wraps it with promises.
 - No linter, formatter, typechecker, or test suite defined. `npm test` is a no-op.
-- Service worker cache names are versioned (`cycleplay-v13`). Bump when assets change to force update.

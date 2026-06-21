@@ -20,6 +20,7 @@ export class GPSManager {
           lat: latitude,
           lng: longitude,
           speed_kmh,
+          accuracy: position.coords.accuracy || 0,
           timestamp: new Date(position.timestamp).toISOString()
         });
       },

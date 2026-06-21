@@ -13,9 +13,9 @@ async function seed() {
     const ride1Stop = new Date(ride1Start.getTime() + 45 * 60 * 1000); // 45 min later
     
     const res1 = await dbRun(
-      `INSERT INTO rides (started_at, stopped_at, total_seconds, moving_seconds, distance_km, avg_speed_kmh, max_speed_kmh, pause_count, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'complete')`,
-      [ride1Start.toISOString(), ride1Stop.toISOString(), 45*60, 42*60, 15.4, 22.0, 35.1, 2]
+      `INSERT INTO rides (started_at, stopped_at, total_seconds, moving_seconds, distance_km, avg_speed_kmh, max_speed_kmh, pause_count, status, name, notes, rating, weather_condition, weather_temp, weather_wind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'complete', ?, ?, ?, ?, ?, ?)`,
+      [ride1Start.toISOString(), ride1Stop.toISOString(), 45*60, 42*60, 15.4, 22.0, 35.1, 2, 'Morning Commute', 'Beautiful sunrise ride along the river.', 1, 'Clear', 18, 8]
     );
     console.log("Inserted ride 1");
 
@@ -24,9 +24,9 @@ async function seed() {
     const ride2Stop = new Date(ride2Start.getTime() + 120 * 60 * 1000); 
     
     const res2 = await dbRun(
-      `INSERT INTO rides (started_at, stopped_at, total_seconds, moving_seconds, distance_km, avg_speed_kmh, max_speed_kmh, pause_count, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'complete')`,
-      [ride2Start.toISOString(), ride2Stop.toISOString(), 120*60, 115*60, 42.1, 21.9, 45.2, 1]
+      `INSERT INTO rides (started_at, stopped_at, total_seconds, moving_seconds, distance_km, avg_speed_kmh, max_speed_kmh, pause_count, status, name, notes, rating, weather_condition, weather_temp, weather_wind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'complete', ?, ?, ?, ?, ?, ?)`,
+      [ride2Start.toISOString(), ride2Stop.toISOString(), 120*60, 115*60, 42.1, 21.9, 45.2, 1, 'Weekend Century', 'Long ride through the countryside. Had a picnic at the halfway point!', 2, 'Partly cloudy', 22, 12]
     );
     console.log("Inserted ride 2");
 
@@ -35,9 +35,9 @@ async function seed() {
     const ride3Stop = new Date(ride3Start.getTime() + 25 * 60 * 1000); 
     
     const res3 = await dbRun(
-      `INSERT INTO rides (started_at, stopped_at, total_seconds, moving_seconds, distance_km, avg_speed_kmh, max_speed_kmh, pause_count, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'complete')`,
-      [ride3Start.toISOString(), ride3Stop.toISOString(), 25*60, 24*60, 11.2, 28.0, 42.5, 0]
+      `INSERT INTO rides (started_at, stopped_at, total_seconds, moving_seconds, distance_km, avg_speed_kmh, max_speed_kmh, pause_count, status, name, notes, rating, weather_condition, weather_temp, weather_wind)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'complete', ?, ?, ?, ?, ?, ?)`,
+      [ride3Start.toISOString(), ride3Stop.toISOString(), 25*60, 24*60, 11.2, 28.0, 42.5, 0, 'Evening Sprint', 'Quick interval training session.', 3, 'Clear', 26, 5]
     );
     console.log("Inserted ride 3");
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cycleplay-v15';
+const CACHE_NAME = 'cycleplay-v16';
 const ASSETS = [
   '/',
   '/index.html',
@@ -50,7 +50,9 @@ async function staleWhileRevalidate(request) {
   
   const fetchPromise = fetch(request).then(async (networkResponse) => {
     if (networkResponse && networkResponse.ok) {
-      await cache.put(request, networkResponse.clone());
+      if (request.method === 'GET') {
+        await cache.put(request, networkResponse.clone());
+      }
     }
     return networkResponse;
   }).catch(() => cachedResponse);
@@ -77,7 +79,9 @@ async function networkFirstWithCacheFallback(request) {
         }
       }
 
-      await cache.put(request, networkResponse.clone());
+      if (method === 'GET') {
+        await cache.put(request, networkResponse.clone());
+      }
     }
     return networkResponse;
   } catch (err) {
