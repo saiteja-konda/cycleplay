@@ -10,6 +10,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <style>
@@ -889,7 +892,7 @@
 <body>
 <div class="app">
 
-  <div id="offlineBanner" class="offline-banner" style="display:none;">📡 You're offline — showing cached data</div>
+  <div id="offlineBanner" class="offline-banner" style="display:none;"><i data-lucide="radio"></i> You're offline — showing cached data</div>
 
   <!-- STATUS BAR: time only — phone's own status bar shows real network/battery -->
   <div class="statusbar">
@@ -900,7 +903,7 @@
   <!-- ═══════ HOME VIEW ═══════ -->
   <div class="view active" id="home">
     <p class="home-greeting" id="home-greeting">Good evening</p>
-    <h1 class="home-title">Let's ride 🚴</h1>
+    <h1 class="home-title">Let's ride <i data-lucide="bike"></i></h1>
 
     <!-- Weekly ring -->
     <div class="weekly-card">
@@ -978,7 +981,7 @@
     <div class="ride-header" style="justify-content:center; position:relative;">
       <span class="ride-time-display" id="rideTimer">--:--</span>
       <button id="mapToggleBtn" onclick="toggleMap()" style="position:absolute; right: 20px; background:var(--surface); border:1px solid var(--border); color:var(--text1); padding:8px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; z-index:1000;">
-        <span id="mapToggleIcon">🗺️</span> <span id="mapToggleText">Map</span>
+        <span id="mapToggleIcon"><i data-lucide="map"></i></span> <span id="mapToggleText">Map</span>
       </button>
     </div>
 
@@ -1106,7 +1109,7 @@
         <div class="summary-tile-label">Total Time</div>
       </div>
       <div class="summary-tile">
-        <div class="summary-tile-icon">🚴</div>
+        <div class="summary-tile-icon"><i data-lucide="bike"></i></div>
         <div class="summary-tile-val" id="sum-moving-time">—</div>
         <div class="summary-tile-label">Moving Time</div>
       </div>
@@ -1225,7 +1228,7 @@
         <div class="summary-tile-label">Total Time</div>
       </div>
       <div class="summary-tile">
-        <div class="summary-tile-icon">🚴</div>
+        <div class="summary-tile-icon"><i data-lucide="bike"></i></div>
         <div class="summary-tile-val" id="det-moving-time">—</div>
         <div class="summary-tile-label">Moving Time</div>
       </div>
@@ -1371,7 +1374,7 @@
   <!-- ═══════ CUSTOM ALERT MODAL ═══════ -->
   <div id="alertModal" class="alert-overlay">
     <div class="alert-box">
-      <div class="alert-icon" id="alertIcon">⚠️</div>
+      <div class="alert-icon" id="alertIcon"><i data-lucide="alert-triangle"></i></div>
       <h3 class="alert-title" id="alertTitle">Alert</h3>
       <p class="alert-message" id="alertMessage">Message goes here</p>
       <button class="alert-btn" onclick="closeAlert()">Got it</button>
@@ -1381,7 +1384,7 @@
   <!-- ═══════ CUSTOM CONFIRM MODAL ═══════ -->
   <div id="confirmModal" class="alert-overlay">
     <div class="alert-box">
-      <div class="alert-icon" id="confirmIcon">🗑️</div>
+      <div class="alert-icon" id="confirmIcon"><i data-lucide="trash-2"></i></div>
       <h3 class="alert-title" id="confirmTitle">Confirm</h3>
       <p class="alert-message" id="confirmMessage">Message</p>
       <div style="display:flex; gap:10px; width:100%;">
@@ -1392,5 +1395,8 @@
   </div>
 
 <script type="module" src="./src/app.js"></script>
+<script>
+  lucide.createIcons();
+</script>
 </body>
 </html>

@@ -10,11 +10,11 @@ const WMO_CODE_MAP = {
 
 export function getWeatherEmoji(condition) {
   const map = {
-    'Clear': '☀️', 'Partly cloudy': '⛅', 'Overcast': '☁️',
-    'Foggy': '🌫️', 'Drizzle': '🌦️', 'Rain': '🌧️',
-    'Snow': '❄️', 'Thunderstorm': '⛈️', 'Unknown': '🌡️'
+    'Clear': '<i data-lucide="sun"></i>', 'Partly cloudy': '<i data-lucide="cloud-sun"></i>', 'Overcast': '<i data-lucide="cloud"></i>',
+    'Foggy': '<i data-lucide="cloud-fog"></i>', 'Drizzle': '<i data-lucide="cloud-drizzle"></i>', 'Rain': '<i data-lucide="cloud-rain"></i>',
+    'Snow': '<i data-lucide="snowflake"></i>', 'Thunderstorm': '<i data-lucide="cloud-lightning"></i>', 'Unknown': '<i data-lucide="thermometer"></i>'
   };
-  return map[condition] || '🌡️';
+  return map[condition] || '<i data-lucide="thermometer"></i>';
 }
 
 export async function fetchWeather(lat, lng) {

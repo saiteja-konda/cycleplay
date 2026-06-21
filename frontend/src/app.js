@@ -11,13 +11,13 @@ let liveAccuracy = null;
 
 const TILE_SOURCES = {
   osm: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  cycle: 'https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png',
+  cycle: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
   satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
 };
 
 const TILE_ATTR = {
   osm: '© OpenStreetMap',
-  cycle: '© Thunderforest',
+  cycle: '© CyclOSM',
   satellite: '© ESRI'
 };
 
@@ -105,15 +105,16 @@ setInterval(updateClock, 10000);
 setInterval(updateGreeting, 60000);
 
 // ── Custom Alert Modal ──
-window.showAlert = function(title, message, icon='⚠️') {
+window.showAlert = function(title, message, icon='<i data-lucide="alert-triangle"></i>') {
   const t = document.getElementById('alertTitle');
   const m = document.getElementById('alertMessage');
   const i = document.getElementById('alertIcon');
   if (t) t.textContent = title;
   if (m) m.textContent = message;
-  if (i) i.textContent = icon;
+  if (i) i.innerHTML = icon;
   const mod = document.getElementById('alertModal');
   if (mod) mod.classList.add('show');
+  if (window.lucide) lucide.createIcons();
 };
 
 window.closeAlert = function() {
@@ -132,6 +133,7 @@ window.showConfirm = function(title, message, onConfirm) {
   currentConfirmCallback = onConfirm;
   const mod = document.getElementById('confirmModal');
   if (mod) mod.classList.add('show');
+  if (window.lucide) lucide.createIcons();
 };
 
 window.closeConfirm = function() {
@@ -159,7 +161,7 @@ window.toggleMap = function() {
     liveMapWrap.style.opacity = '1';
     liveMapWrap.style.pointerEvents = 'auto';
     if(btnText) btnText.textContent = 'Speed';
-    if(btnIcon) btnIcon.textContent = '⏱️';
+    if(btnIcon) { btnIcon.innerHTML = '<i data-lucide="timer"></i>'; if (window.lucide) lucide.createIcons(); }
     
     if (!liveMap && window.L) {
       liveMap = L.map('liveMap', { zoomControl: false }).setView([0, 0], 16);
@@ -186,7 +188,7 @@ window.toggleMap = function() {
     liveMapWrap.style.opacity = '0';
     liveMapWrap.style.pointerEvents = 'none';
     if(btnText) btnText.textContent = 'Map';
-    if(btnIcon) btnIcon.textContent = '🗺️';
+    if(btnIcon) { btnIcon.innerHTML = '<i data-lucide="map"></i>'; if (window.lucide) lucide.createIcons(); }
   }
 };
 
@@ -290,7 +292,7 @@ window.showRideDetails = async function (id) {
             await deleteRide(id);
             window.showView('history');
           } catch (err) {
-            window.showAlert('Error', 'Failed to delete ride. Check your connection.', '❌');
+            window.showAlert('Error', 'Failed to delete ride. Check your connection.', '<i data-lucide="x"></i>');
           }
         });
       };
@@ -365,7 +367,7 @@ window.showRideDetails = async function (id) {
           document.getElementById('editRideSection').style.display = 'none';
           showRideDetails(id);
         } catch (err) {
-          window.showAlert('Error', 'Failed to save changes. Check your connection.', '❌');
+          window.showAlert('Error', 'Failed to save changes. Check your connection.', '<i data-lucide="x"></i>');
         }
       };
     }
