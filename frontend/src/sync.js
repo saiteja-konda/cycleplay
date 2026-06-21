@@ -1,4 +1,4 @@
-import { trackPoints } from './api.js';
+import { trackPoints, stopRide } from './api.js';
 
 export class SyncService {
   constructor() {
@@ -6,6 +6,9 @@ export class SyncService {
     this.syncInterval = null;
     this.rideId = null;
     this._dbReady = this._initDB();
+    this._onlineHandler = () => this._syncPoints();
+    this._syncing = false;
+    window.addEventListener('online', this._onlineHandler);
   }
 
   _initDB() {
@@ -51,6 +54,20 @@ export class SyncService {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
     }
+    window.removeEventListener('online', this._onlineHandler);
+  }
+
+  async retryPending() {
+    await this._dbReady;
+    return this._syncPoints();
+  }
+
+  async cacheStopRequest(rideId, data) {
+    await this._dbReady;
+    if (!this.db) return;
+    const tx = this.db.transaction('points', 'readwrite');
+    const store = tx.objectStore('points');
+    store.add({ type: 'stop', rideId, data, timestamp: Date.now() });
   }
 
   // Public: await this before stopRide API call
@@ -82,17 +99,37 @@ export class SyncService {
   }
 
   async _syncPoints() {
-    if (!this.db || !this.rideId) return;
-
-    const points = await this._getAllPoints();
-    if (points.length === 0) return;
+    if (!this.db || this._syncing) return;
+    this._syncing = true;
 
     try {
-      await trackPoints(this.rideId, points);
-      // Only delete after confirmed server receipt
-      await this._deletePoints(points.map(p => p.id));
-    } catch (err) {
-      console.warn('Sync failed, points kept in buffer for retry:', err.message);
+      const entries = await this._getAllPoints();
+      if (entries.length === 0) return;
+
+      const stopEntries = entries.filter(e => e.type === 'stop');
+      const pointEntries = entries.filter(e => e.type !== 'stop');
+
+      if (stopEntries.length > 0) {
+        try {
+          for (const entry of stopEntries) {
+            await stopRide(entry.rideId, entry.data.moving_seconds, entry.data.pause_count, entry.data.options || {});
+          }
+          await this._deletePoints(stopEntries.map(e => e.id));
+        } catch (err) {
+          console.warn('Stop sync failed, kept for retry:', err.message);
+        }
+      }
+
+      if (!this.rideId || pointEntries.length === 0) return;
+
+      try {
+        await trackPoints(this.rideId, pointEntries);
+        await this._deletePoints(pointEntries.map(p => p.id));
+      } catch (err) {
+        console.warn('Sync failed (' + err.message + '), ' + pointEntries.length + ' points kept for retry');
+      }
+    } finally {
+      this._syncing = false;
     }
   }
 }

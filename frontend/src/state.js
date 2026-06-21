@@ -1,6 +1,9 @@
 import { GPSManager } from './gps.js';
 import { SyncService } from './sync.js';
 import { startRide, stopRide, getActiveRide } from './api.js';
+import { VoiceService } from './voice.js';
+import { AudioCue } from './audio.js';
+import { fetchWeather } from './weather.js';
 
 export const STATES = {
   IDLE: 'IDLE',
@@ -46,6 +49,9 @@ export class RideState {
     this.speedHistory = []; // for speed chart on summary
     this.pointsHistory = []; // for map polyline on summary
     this._releaseTabLock = null;
+    this._lastMilestoneKm = 0;
+    this.voice = new VoiceService();
+    this.audio = new AudioCue();
   }
 
   async requestWakeLock() {
@@ -77,6 +83,7 @@ export class RideState {
     };
     this.speedHistory = [];
     this.pointsHistory = [];
+    this._lastMilestoneKm = 0;
   }
 
   async start() {
@@ -103,7 +110,22 @@ export class RideState {
         }
       }
 
-      const { ride_id } = await startRide();
+      let weatherData = {};
+      if ('geolocation' in navigator) {
+        try {
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+          });
+          const weather = await fetchWeather(pos.coords.latitude, pos.coords.longitude);
+          weatherData = {
+            weather_condition: weather.condition,
+            weather_temp: weather.temp,
+            weather_wind: weather.wind
+          };
+        } catch (e) {}
+      }
+
+      const { ride_id } = await startRide(weatherData);
       this.rideId = ride_id;
       this.sync.setRideId(ride_id);
 
@@ -121,6 +143,8 @@ export class RideState {
       }, 1000);
 
       this.ui.onStateChange(this.state);
+      this.voice.speak('Ride started');
+      this.audio.playSweep(440, 880, 0.3);
     } catch (err) {
       if (this._releaseTabLock) {
         this._releaseTabLock();
@@ -134,7 +158,7 @@ export class RideState {
         }
       }
       console.error('Failed to start ride:', err);
-      window.showAlert('Connection Error', 'Please check your internet connection and try again.', '📡');
+      window.showAlert('Connection Error', err.message || 'Please check your internet connection and try again.', '📡');
     }
   }
 
@@ -221,6 +245,17 @@ export class RideState {
         this.autoResume();
       }
     }
+
+    if (this.state === STATES.RECORDING) {
+      const milestoneKm = Math.floor(this.stats.distance / 5);
+      if (milestoneKm > this._lastMilestoneKm) {
+        const mins = Math.floor(this.stats.movingSeconds / 60);
+        this.voice.speak(`${Math.floor(this.stats.distance)} kilometers in ${mins} minutes`);
+        this.audio.playTone(660, 0.15);
+        setTimeout(() => this.audio.playTone(880, 0.15), 100);
+        this._lastMilestoneKm = milestoneKm;
+      }
+    }
   }
 
   autoPause() {
@@ -228,22 +263,30 @@ export class RideState {
     this.stats.pauseCount++;
     this.pauseTimeout = null;
     this.ui.onStateChange(this.state, { auto: true });
+    this.voice.speak('Ride paused');
+    this.audio.playTone(300, 0.15);
   }
 
   autoResume() {
     this.state = STATES.RECORDING;
     this.ui.onStateChange(this.state);
+    this.voice.speak('Ride resumed');
+    this.audio.playTone(660, 0.15);
   }
 
   manualPause() {
     if (this.pauseTimeout) { clearTimeout(this.pauseTimeout); this.pauseTimeout = null; }
     this.state = STATES.PAUSED;
     this.ui.onStateChange(this.state, { auto: false });
+    this.voice.speak('Ride paused');
+    this.audio.playTone(300, 0.15);
   }
 
   manualResume() {
     this.state = STATES.RECORDING;
     this.ui.onStateChange(this.state);
+    this.voice.speak('Ride resumed');
+    this.audio.playTone(660, 0.15);
   }
 
   async stop() {
@@ -260,24 +303,49 @@ export class RideState {
 
     // ── Wait for the final sync flush before calling stop ──
     try {
-      await this.sync.flush(); // flush remaining unsent points first
+      await this.sync.flush();
     } catch (err) {
       console.warn('Final sync flush warning:', err);
+    }
+
+    // Stop the recurring sync to prevent stale requests
+    this.sync.stopSync();
+
+    let weatherStopData = {};
+    if (this.stats.lastLat !== null && this.stats.lastLng !== null) {
+      try {
+        const weather = await fetchWeather(this.stats.lastLat, this.stats.lastLng);
+        weatherStopData = {
+          weather_condition: weather.condition,
+          weather_temp: weather.temp,
+          weather_wind: weather.wind
+        };
+      } catch (e) {}
     }
 
     try {
       const summary = await stopRide(
         this.rideId,
         this.stats.movingSeconds,
-        this.stats.pauseCount
+        this.stats.pauseCount,
+        {
+          name: window._rideName || '',
+          notes: window._rideNotes || '',
+          rating: window._selectedRating || null,
+          photo_url: window._capturedPhoto || null,
+          ...weatherStopData
+        }
       );
       // Attach local speed history for the chart
       summary._speedHistory = this.speedHistory;
       summary._points = this.pointsHistory;
       this.ui.onSummary(summary);
+      const mins = Math.floor(this.stats.movingSeconds / 60);
+      this.voice.speak(`Ride complete. ${this.stats.distance.toFixed(1)} kilometers in ${mins} minutes`);
+      this.audio.playSweep(880, 220, 0.5);
     } catch (err) {
       console.error('Failed to stop ride:', err);
-      window.showAlert('Save Failed', 'Please check your internet connection to save this ride.', '❌');
+      window.showAlert('Save Failed', err.message || 'Please check your internet connection to save this ride.', '❌');
     }
   }
 }

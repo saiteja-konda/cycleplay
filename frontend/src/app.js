@@ -1,11 +1,39 @@
 import { RideState, STATES } from './state.js';
-import { getRides, getActiveRide } from './api.js';
+import { getRides, getActiveRide, getRideStats, deleteRide, updateRide } from './api.js';
+import { getWeatherEmoji } from './weather.js';
 
 // ── Live Map State ──
 let mapMode = false;
 let liveMap = null;
 let livePolyline = null;
 let liveMarker = null;
+let liveAccuracy = null;
+
+const TILE_SOURCES = {
+  osm: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  cycle: 'https://tile.thunderforest.com/cycle/{z}/{x}/{y}.png',
+  satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+};
+
+const TILE_ATTR = {
+  osm: '© OpenStreetMap',
+  cycle: '© Thunderforest',
+  satellite: '© ESRI'
+};
+
+let currentTileLayer = null;
+let summaryPopupPoints = null;
+let detailsPopupPoints = null;
+
+function setTileLayer(map, source) {
+  if (currentTileLayer) map.removeLayer(currentTileLayer);
+  currentTileLayer = L.tileLayer(TILE_SOURCES[source], {
+    attribution: TILE_ATTR[source],
+    maxZoom: 19
+  }).addTo(map);
+  localStorage.setItem('mapLayer', source);
+}
+
 let summaryMap = null;
 let summaryPolyline = null;
 
@@ -22,6 +50,34 @@ function fmtDate(isoStr) {
   const d = new Date(isoStr);
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
          ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// ── Calendar State ──
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth() + 1;
+
+// ── Theme ──
+const SUN_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+
+const MOON_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>`;
+
+export function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  const btn = document.getElementById('themeToggle');
+  if (btn) {
+    btn.innerHTML = theme === 'dark' ? SUN_ICON : MOON_ICON;
+  }
+}
+
+export function initTheme() {
+  const stored = localStorage.getItem('theme');
+  if (stored) {
+    applyTheme(stored);
+  } else {
+    const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    applyTheme(prefersLight ? 'light' : 'dark');
+  }
 }
 
 // ── Clock & Greeting ──
@@ -107,10 +163,21 @@ window.toggleMap = function() {
     
     if (!liveMap && window.L) {
       liveMap = L.map('liveMap', { zoomControl: false }).setView([0, 0], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-      }).addTo(liveMap);
+      const savedLayer = localStorage.getItem('mapLayer') || 'osm';
+      setTileLayer(liveMap, savedLayer);
       livePolyline = L.polyline([], {color: 'var(--accent)', weight: 5}).addTo(liveMap);
+
+      document.querySelectorAll('.layer-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.layer-btn').forEach(b => {
+            b.style.background = 'transparent';
+            b.style.color = 'var(--text2)';
+          });
+          btn.style.background = 'var(--accent)';
+          btn.style.color = 'white';
+          setTileLayer(liveMap, btn.dataset.layer);
+        });
+      });
     }
     setTimeout(() => { if(liveMap) liveMap.invalidateSize(); }, 300);
   } else {
@@ -135,6 +202,13 @@ window.showView = function (id) {
   // Reload history when navigating there
   if (id === 'history' || id === 'home') {
     renderRides();
+  }
+
+  if (id === 'calendar') {
+    const now = new Date();
+    renderCalendar(now.getFullYear(), now.getMonth() + 1);
+    renderBarChart(now.getFullYear());
+    renderYearTotals(now.getFullYear());
   }
 };
 
@@ -163,14 +237,44 @@ window.showRideDetails = async function (id) {
     
     if (points && points.length > 0 && window.L) {
       if (!detailsMap) {
-        detailsMap = L.map('detailsMap', { zoomControl: false, dragging: true, touchZoom: true, scrollWheelZoom: true, doubleClickZoom: true });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap'
-        }).addTo(detailsMap);
+        detailsMap = L.map('detailsMap', { zoomControl: true, dragging: true, touchZoom: true, scrollWheelZoom: true, doubleClickZoom: true });
+        setTileLayer(detailsMap, localStorage.getItem('mapLayer') || 'osm');
         detailsPolyline = L.polyline([], {color: 'var(--accent)', weight: 5}).addTo(detailsMap);
+
+        detailsPolyline.on('click', (e) => {
+          const latlng = e.latlng;
+          const pts = detailsPopupPoints || [];
+          let closest = pts[0];
+          let minDist = Infinity;
+          pts.forEach(p => {
+            const d = (p.lat - latlng.lat) ** 2 + (p.lng - latlng.lng) ** 2;
+            if (d < minDist) { minDist = d; closest = p; }
+          });
+          if (closest) {
+            const time = new Date(closest.timestamp || closest.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            L.popup()
+              .setLatLng([closest.lat, closest.lng])
+              .setContent(`⚡ ${closest.speed_kmh.toFixed(1)} km/h &nbsp;·&nbsp; 🕐 ${time}`)
+              .openOn(detailsMap);
+          }
+        });
+
+        const detFitBtn = document.getElementById('detFitRouteBtn');
+        if (detFitBtn) {
+          detFitBtn.onclick = () => {
+            if (detailsPolyline && detailsPolyline.getBounds().isValid()) {
+              detailsMap.fitBounds(detailsPolyline.getBounds(), { padding: [20, 20] });
+            }
+          };
+        }
       }
+      detailsPopupPoints = points || [];
       const latlngs = points.map(p => [p.lat, p.lng]);
       detailsPolyline.setLatLngs(latlngs);
+
+      const detFitBtn = document.getElementById('detFitRouteBtn');
+      if (detFitBtn) detFitBtn.style.display = 'block';
+
       setTimeout(() => {
         detailsMap.invalidateSize();
         detailsMap.fitBounds(detailsPolyline.getBounds(), { padding: [20, 20] });
@@ -183,13 +287,86 @@ window.showRideDetails = async function (id) {
       delBtn.onclick = () => {
         window.showConfirm('Delete Ride?', 'Are you sure you want to permanently delete this ride?', async () => {
           try {
-            const { deleteRide } = await import('./api.js');
             await deleteRide(id);
             window.showView('history');
           } catch (err) {
-            window.showAlert('Error', 'Failed to delete ride.', '❌');
+            window.showAlert('Error', 'Failed to delete ride. Check your connection.', '❌');
           }
         });
+      };
+    }
+
+    // ── Name ──
+    const detName = document.getElementById('detName');
+    if (detName) detName.textContent = ride.name || '';
+
+    // ── Notes ──
+    const detNotes = document.getElementById('detNotes');
+    if (detNotes) detNotes.textContent = ride.notes || '';
+
+    // ── Rating ──
+    const detRating = document.getElementById('detRating');
+    const ratings = ['', '😀', '🙂', '😐', '😞'];
+    if (detRating) detRating.textContent = ride.rating ? ratings[ride.rating] || '' : '';
+
+    // ── Photo ──
+    const photoWrap = document.getElementById('detPhotoWrap');
+    const photoImg = document.getElementById('detPhotoImg');
+    if (photoWrap && photoImg) {
+      if (ride.photo_url) {
+        photoWrap.style.display = 'block';
+        photoImg.src = ride.photo_url;
+        photoImg.onclick = () => window.open(ride.photo_url, '_blank');
+      } else {
+        photoWrap.style.display = 'none';
+      }
+    }
+
+    // ── Weather ──
+    const detWeather = document.getElementById('detWeather');
+    if (ride.weather_condition && detWeather) {
+      detWeather.style.display = 'block';
+      document.getElementById('detWeatherIcon').textContent = getWeatherEmoji(ride.weather_condition);
+      document.getElementById('detWeatherLabel').textContent = ride.weather_condition;
+      document.getElementById('detWeatherDetail').textContent = `${ride.weather_temp}°C / 💨 ${ride.weather_wind} km/h`;
+    } else if (detWeather) {
+      detWeather.style.display = 'none';
+    }
+
+    // ── Edit button ──
+    const editBtn = document.getElementById('editRideBtn');
+    if (editBtn) {
+      editBtn.onclick = () => {
+        const section = document.getElementById('editRideSection');
+        if (section) {
+          section.style.display = section.style.display === 'none' ? 'block' : 'none';
+        }
+        const editName = document.getElementById('editName');
+        if (editName) editName.value = ride.name || '';
+        const editNotes = document.getElementById('editNotes');
+        if (editNotes) editNotes.value = ride.notes || '';
+        document.querySelectorAll('.edit-rating-btn').forEach(b => {
+          b.classList.toggle('selected', parseInt(b.dataset.rating) === ride.rating);
+        });
+      };
+    }
+
+    // ── Save edit ──
+    const saveEditBtn = document.getElementById('saveEditBtn');
+    if (saveEditBtn) {
+      saveEditBtn.onclick = async () => {
+        try {
+          const data = {
+            name: document.getElementById('editName')?.value,
+            notes: document.getElementById('editNotes')?.value,
+            rating: parseInt(document.querySelector('.edit-rating-btn.selected')?.dataset?.rating) || null
+          };
+          await updateRide(id, data);
+          document.getElementById('editRideSection').style.display = 'none';
+          showRideDetails(id);
+        } catch (err) {
+          window.showAlert('Error', 'Failed to save changes. Check your connection.', '❌');
+        }
       };
     }
 
@@ -210,9 +387,10 @@ window.startRideBtn = function () {
 };
 
 window.endRide = function () {
-  // Disable the stop button during the stop + flush sequence
   const stopBtn = document.querySelector('.ctrl-stop');
   if (stopBtn) stopBtn.disabled = true;
+  window._rideName = document.getElementById('sumName')?.value || '';
+  window._rideNotes = document.getElementById('sumNotes')?.value || '';
   rideState.stop();
 };
 
@@ -222,6 +400,8 @@ const uiCallbacks = {
   updateTimer: (seconds) => {
     const el = document.getElementById('rideTimer');
     if (el) el.textContent = fmtSeconds(seconds);
+    const liveTimeEl = document.getElementById('liveTime');
+    if (liveTimeEl) liveTimeEl.textContent = fmtSeconds(seconds);
   },
 
   updateSpeed: (kmh, stats) => {
@@ -255,6 +435,35 @@ const uiCallbacks = {
     const avg = movingHrs > 0 ? stats.distance / movingHrs : 0;
     const avgEl = document.getElementById('metricAvg');
     if (avgEl) avgEl.textContent = avg > 0 ? avg.toFixed(1) : '—';
+
+    const liveDistEl = document.getElementById('liveDist');
+    if (liveDistEl) liveDistEl.textContent = (stats.distance || 0).toFixed(2);
+
+    const liveAvgEl = document.getElementById('liveAvg');
+    if (liveAvgEl) liveAvgEl.textContent = avg > 0 ? avg.toFixed(1) : '—';
+  },
+
+  onPoint: (point) => {
+    if (liveMap && mapMode) {
+      const latlng = [point.lat, point.lng];
+
+      if (!liveMarker) {
+        const icon = L.divIcon({
+          className: 'live-marker',
+          html: '<div class="live-marker-dot"></div><div class="live-marker-pulse"></div>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        liveMarker = L.marker(latlng, { icon }).addTo(liveMap);
+
+        if (point.accuracy) {
+          liveAccuracy = L.circle(latlng, { radius: point.accuracy, color: '#0a84ff', fillColor: '#0a84ff', fillOpacity: 0.1, weight: 1 }).addTo(liveMap);
+        }
+      } else {
+        liveMarker.setLatLng(latlng);
+        if (liveAccuracy) liveAccuracy.setLatLng(latlng);
+      }
+    }
   },
 
   onStateChange: (state, meta = {}) => {
@@ -275,6 +484,8 @@ const uiCallbacks = {
         startBtn.style.display = 'flex';
         startBtn.innerHTML = PAUSE_ICON;
       }
+      const liveCardRec = document.getElementById('liveCard');
+      if (liveCardRec) liveCardRec.style.display = 'block';
     } else if (state === STATES.PAUSED) {
       if (banner) {
         banner.textContent = meta.auto ? 'AUTO PAUSED' : 'PAUSED';
@@ -289,6 +500,8 @@ const uiCallbacks = {
         startBtn.innerHTML = PLAY_ICON;
       }
       if (stopBtn) stopBtn.style.display = 'flex';
+      const liveCardPaused = document.getElementById('liveCard');
+      if (liveCardPaused) liveCardPaused.style.display = 'block';
     } else if (state === STATES.IDLE) {
       if (stopBtn) stopBtn.style.display = 'none';
       if (startBtn) {
@@ -310,6 +523,9 @@ const uiCallbacks = {
       
       const speedArc = document.getElementById('speedArc');
       if (speedArc) speedArc.style.strokeDashoffset = 566;
+
+      const liveCard = document.getElementById('liveCard');
+      if (liveCard) liveCard.style.display = 'none';
     }
   },
 
@@ -359,18 +575,96 @@ const uiCallbacks = {
     // ── Summary Map ──
     if (summary._points && summary._points.length > 0 && window.L) {
       if (!summaryMap) {
-        summaryMap = L.map('summaryMap', { zoomControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap'
-        }).addTo(summaryMap);
+        summaryMap = L.map('summaryMap', { zoomControl: true, dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false });
+        setTileLayer(summaryMap, localStorage.getItem('mapLayer') || 'osm');
         summaryPolyline = L.polyline([], {color: 'var(--accent)', weight: 5}).addTo(summaryMap);
+
+        summaryPolyline.on('click', (e) => {
+          const latlng = e.latlng;
+          const pts = summaryPopupPoints || [];
+          let closest = pts[0];
+          let minDist = Infinity;
+          pts.forEach(p => {
+            const d = (p.lat - latlng.lat) ** 2 + (p.lng - latlng.lng) ** 2;
+            if (d < minDist) { minDist = d; closest = p; }
+          });
+          if (closest) {
+            const time = new Date(closest.timestamp || closest.recorded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            L.popup()
+              .setLatLng([closest.lat, closest.lng])
+              .setContent(`⚡ ${closest.speed_kmh.toFixed(1)} km/h &nbsp;·&nbsp; 🕐 ${time}`)
+              .openOn(summaryMap);
+          }
+        });
+
+        const fitBtn = document.getElementById('fitRouteBtn');
+        if (fitBtn) {
+          fitBtn.onclick = () => {
+            if (summaryPolyline && summaryPolyline.getBounds().isValid()) {
+              summaryMap.fitBounds(summaryPolyline.getBounds(), { padding: [20, 20] });
+            }
+          };
+        }
       }
+      summaryPopupPoints = summary._points || [];
       const latlngs = summary._points.map(p => [p.lat, p.lng]);
       summaryPolyline.setLatLngs(latlngs);
+
+      const fitBtn = document.getElementById('fitRouteBtn');
+      if (fitBtn) fitBtn.style.display = 'block';
+
       setTimeout(() => {
         summaryMap.invalidateSize();
         summaryMap.fitBounds(summaryPolyline.getBounds(), { padding: [20, 20] });
       }, 300);
+    }
+
+    // Weather
+    const weatherEl = document.getElementById('sumWeather');
+    const iconEl = document.getElementById('sumWeatherIcon');
+    const labelEl = document.getElementById('sumWeatherLabel');
+    const detailEl = document.getElementById('sumWeatherDetail');
+    if (summary.weather_condition && weatherEl) {
+      weatherEl.style.display = 'block';
+      iconEl.textContent = getWeatherEmoji(summary.weather_condition);
+      labelEl.textContent = summary.weather_condition;
+      detailEl.textContent = `${summary.weather_temp}°C / 💨 ${summary.weather_wind} km/h`;
+    } else if (weatherEl) {
+      weatherEl.style.display = 'none';
+    }
+
+    // Clear ride metadata inputs for next ride
+    const nameEl = document.getElementById('sumName');
+    if (nameEl) nameEl.value = '';
+
+    const notesEl = document.getElementById('sumNotes');
+    if (notesEl) notesEl.value = '';
+
+    document.querySelectorAll('.rating-btn:not(.edit-rating-btn)').forEach(b => b.classList.remove('selected'));
+    window._selectedRating = null;
+
+    const photoPreview = document.getElementById('photoPreview');
+    if (photoPreview) photoPreview.style.display = 'none';
+    const photoInput = document.getElementById('photoInput');
+    if (photoInput) photoInput.value = '';
+    window._capturedPhoto = null;
+
+    // Pre-fill name/notes/rating/photo from saved ride data
+    if (summary.name) { if (nameEl) nameEl.value = summary.name; }
+    if (summary.notes) { if (notesEl) notesEl.value = summary.notes; }
+    if (summary.rating) {
+      window._selectedRating = summary.rating;
+      const ratingBtn = document.querySelector(`.rating-btn[data-rating="${summary.rating}"]:not(.edit-rating-btn)`);
+      if (ratingBtn) ratingBtn.classList.add('selected');
+    }
+    if (summary.photo_url) {
+      const pImg = document.getElementById('photoImg');
+      const pPrev = document.getElementById('photoPreview');
+      if (pImg && pPrev) {
+        pImg.src = summary.photo_url;
+        pPrev.style.display = 'block';
+        window._capturedPhoto = summary.photo_url;
+      }
     }
 
     // Refresh ride list after a real ride
@@ -464,7 +758,7 @@ async function renderRides() {
 }
 
 // ── Weekly ring & bar chart ──
-function renderWeekly(rides) {
+export function renderWeekly(rides) {
   // Get the Mon–Sun range of the current week
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0=Sun
@@ -487,13 +781,16 @@ function renderWeekly(rides) {
     }
   });
 
-  // Ring: target = 50 km/week (full circle at 50 km)
-  const WEEKLY_GOAL_KM = 50;
-  const fraction = Math.min(weekKm / WEEKLY_GOAL_KM, 1);
+  // Ring: target from localStorage (default 50 km)
+  const goalKm = parseFloat(localStorage.getItem('weeklyGoalKm')) || 50;
+  const fraction = Math.min(weekKm / goalKm, 1);
   const circumference = 213.6;
   const ringOffset = circumference - fraction * circumference;
   const ringArc = document.getElementById('weekly-ring-arc');
   if (ringArc) ringArc.style.strokeDashoffset = ringOffset;
+
+  const goalText = document.getElementById('weekly-goal-text');
+  if (goalText) goalText.textContent = `/ ${goalKm} km`;
 
   const countEl = document.getElementById('weekly-ride-count');
   if (countEl) countEl.textContent = weekRides;
@@ -518,10 +815,313 @@ function renderWeekly(rides) {
   }).join('');
 }
 
+// ── Calendar ──
+async function renderCalendar(year, month) {
+  calYear = year;
+  calMonth = month;
+
+  const monthEl = document.getElementById('calMonthYear');
+  if (monthEl) {
+    const d = new Date(year, month - 1, 1);
+    monthEl.textContent = d.toLocaleDateString([], { month: 'long', year: 'numeric' });
+  }
+
+  const grid = document.getElementById('calGrid');
+  if (!grid) return;
+
+  const firstDay = new Date(year, month - 1, 1).getDay();
+  const startOffset = (firstDay + 6) % 7;
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  let rides = [];
+  try {
+    const allRides = await getRides();
+    rides = allRides.filter(r => {
+      const d = new Date(r.started_at);
+      return d.getFullYear() === year && (d.getMonth() + 1) === month;
+    });
+  } catch (e) {}
+
+  const dayData = {};
+  rides.forEach(r => {
+    const d = new Date(r.started_at);
+    const day = d.getDate();
+    dayData[day] = (dayData[day] || 0) + (r.distance_km || 0);
+  });
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${today.getMonth()+1}-${today.getDate()}`;
+
+  let cells = '';
+  for (let i = 0; i < startOffset; i++) {
+    cells += '<div class="cal-cell empty"></div>';
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dist = dayData[d] || 0;
+    const isToday = `${year}-${month}-${d}` === todayStr;
+    const distClass = dist > 50 ? 'l5' : dist > 30 ? 'l4' : dist > 15 ? 'l3' : dist > 5 ? 'l2' : dist > 0 ? 'l1' : '';
+    cells += `<div class="cal-cell ${distClass} ${isToday ? 'today' : ''}" data-day="${d}" onclick="showDayRides(${year},${month},${d})">${d}</div>`;
+  }
+
+  grid.innerHTML = cells;
+}
+
+window.showDayRides = async function (year, month, day) {
+  const container = document.getElementById('calDayRides');
+  const title = document.getElementById('calDayTitle');
+  const list = document.getElementById('calDayRidesList');
+  if (!container || !list) return;
+
+  container.style.display = 'block';
+  const d = new Date(year, month - 1, day);
+  if (title) {
+    title.textContent = `Rides on ${d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  }
+
+  document.querySelectorAll('.cal-cell.selected').forEach(el => el.classList.remove('selected'));
+  const cell = document.querySelector(`.cal-cell[data-day="${day}"]`);
+  if (cell) cell.classList.add('selected');
+
+  let allRides = [];
+  try {
+    allRides = await getRides();
+  } catch (e) {}
+
+  const dayRides = allRides.filter(r => {
+    const rd = new Date(r.started_at);
+    return rd.getFullYear() === year && (rd.getMonth() + 1) === month && rd.getDate() === day;
+  });
+
+  if (dayRides.length === 0) {
+    list.innerHTML = '<p style="color:var(--text2);font-size:13px;">No rides on this day.</p>';
+  } else {
+    list.innerHTML = dayRides.map(r => {
+      const start = new Date(r.started_at);
+      const timeStr = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = start.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      const movingSec = r.moving_seconds || 0;
+      const timeFmt = fmtSeconds(movingSec);
+
+      return `
+        <div class="ride-card" onclick="showRideDetails(${r.id})">
+          <div class="ride-card-top">
+            <span class="ride-card-date">${dateStr} · ${timeStr}</span>
+            <span class="ride-card-badge">Ride</span>
+          </div>
+          <div class="ride-card-dist">${(r.distance_km || 0).toFixed(2)} <span>km</span></div>
+          <div class="ride-card-stats">
+            <div class="ride-stat"><div class="ride-stat-val">${timeFmt}</div><div class="ride-stat-label">Moving</div></div>
+            <div class="ride-stat"><div class="ride-stat-val">${(r.avg_speed_kmh || 0).toFixed(1)}</div><div class="ride-stat-label">Avg km/h</div></div>
+            <div class="ride-stat"><div class="ride-stat-val">${(r.max_speed_kmh || 0).toFixed(1)}</div><div class="ride-stat-label">Max km/h</div></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+};
+
+async function renderBarChart(year) {
+  const container = document.getElementById('calBarChart');
+  if (!container) return;
+
+  let stats = { monthly: [] };
+  try {
+    stats = await getRideStats();
+  } catch (e) {}
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+
+  const yearMonths = (stats.monthly || []).filter(m => m.year === year);
+  const maxDist = Math.max(...yearMonths.map(m => m.distance_km || 0), 1);
+
+  let bars = '';
+  for (let m = 1; m <= 12; m++) {
+    const monthData = yearMonths.find(ym => ym.month === m);
+    const dist = monthData ? monthData.distance_km : 0;
+    const heightPct = (dist / maxDist) * 100;
+    const isCurrent = (year === currentYear && m === currentMonth);
+
+    bars += `
+      <div class="cal-bar-wrap">
+        <div class="cal-bar-val">${dist > 0 ? dist.toFixed(0) : ''}</div>
+        <div class="cal-bar ${isCurrent ? 'current-month' : ''}" style="height:${Math.max(heightPct, 2)}%"></div>
+        <div class="cal-bar-label">${monthNames[m-1]}</div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = bars;
+}
+
+async function renderYearTotals(year) {
+  const container = document.getElementById('calYearTotals');
+  if (!container) return;
+
+  let stats = { yearly: [], monthly: [] };
+  try {
+    stats = await getRideStats();
+  } catch (e) {}
+
+  const yearData = (stats.yearly || []).find(y => y.year === year);
+  const yearMonths = (stats.monthly || []).filter(m => m.year === year);
+  let bestMonth = null;
+  let bestDist = 0;
+  yearMonths.forEach(m => {
+    if ((m.distance_km || 0) > bestDist) {
+      bestDist = m.distance_km;
+      bestMonth = m.month;
+    }
+  });
+  const monthNames3 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const bestMonthName = bestMonth ? monthNames3[bestMonth - 1] : '—';
+
+  if (yearData) {
+    container.innerHTML = `
+      <div class="cal-year-stat">
+        <div class="cal-year-stat-val">${(yearData.distance_km || 0).toFixed(0)}</div>
+        <div class="cal-year-stat-label">Total km</div>
+      </div>
+      <div class="cal-year-stat">
+        <div class="cal-year-stat-val">${yearData.ride_count || 0}</div>
+        <div class="cal-year-stat-label">Rides</div>
+      </div>
+      <div class="cal-year-stat">
+        <div class="cal-year-stat-val">${Math.floor(yearData.moving_hours || 0)}h</div>
+        <div class="cal-year-stat-label">Moving Time</div>
+      </div>
+      <div class="cal-year-stat">
+        <div class="cal-year-stat-val">${bestMonthName}</div>
+        <div class="cal-year-stat-label">Best Month</div>
+      </div>
+    `;
+  } else {
+    container.innerHTML = `
+      <div class="cal-year-stat">
+        <div class="cal-year-stat-val">0</div>
+        <div class="cal-year-stat-label">Total km</div>
+      </div>
+      <div class="cal-year-stat">
+        <div class="cal-year-stat-val">0</div>
+        <div class="cal-year-stat-label">Rides</div>
+      </div>
+      <div class="cal-year-stat">
+        <div class="cal-year-stat-val">0h</div>
+        <div class="cal-year-stat-label">Moving Time</div>
+      </div>
+      <div class="cal-year-stat">
+        <div class="cal-year-stat-val">—</div>
+        <div class="cal-year-stat-label">Best Month</div>
+      </div>
+    `;
+  }
+}
+
+window.calPrevMonth = function () {
+  let m = calMonth - 1;
+  let y = calYear;
+  if (m < 1) { m = 12; y--; }
+  renderCalendar(y, m);
+};
+
+window.calNextMonth = function () {
+  let m = calMonth + 1;
+  let y = calYear;
+  if (m > 12) { m = 1; y++; }
+  renderCalendar(y, m);
+};
+
+window.selectRating = function(val) {
+  document.querySelectorAll('.rating-btn:not(.edit-rating-btn)').forEach(b => b.classList.remove('selected'));
+  const btn = document.querySelector(`.rating-btn[data-rating="${val}"]:not(.edit-rating-btn)`);
+  if (btn) btn.classList.add('selected');
+  window._selectedRating = val;
+};
+
+window.editSelectRating = function(val) {
+  document.querySelectorAll('.edit-rating-btn').forEach(b => b.classList.remove('selected'));
+  const btn = document.querySelector(`.edit-rating-btn[data-rating="${val}"]`);
+  if (btn) btn.classList.add('selected');
+};
+
 // ── Init ──
 const rideState = new RideState(uiCallbacks);
 
 async function init() {
+  initTheme();
+
+  const toggleBtn = document.getElementById('themeToggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      applyTheme(current === 'light' ? 'dark' : 'light');
+    });
+  }
+
+  const gearBtn = document.getElementById('weeklyGoalGear');
+  const editor = document.getElementById('weeklyGoalEditor');
+  if (gearBtn && editor) {
+    gearBtn.addEventListener('click', () => {
+      const input = document.getElementById('weeklyGoalInput');
+      if (input) {
+        input.value = localStorage.getItem('weeklyGoalKm') || '50';
+      }
+      gearBtn.style.display = 'none';
+      editor.style.display = 'inline-flex';
+    });
+    const saveBtn = document.getElementById('weeklyGoalSave');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        const input = document.getElementById('weeklyGoalInput');
+        if (input && input.value) {
+          localStorage.setItem('weeklyGoalKm', input.value);
+        }
+        gearBtn.style.display = 'inline-flex';
+        editor.style.display = 'none';
+        renderRides();
+      });
+    }
+  }
+
+  // ── Photo capture ──
+  document.getElementById('photoBtn')?.addEventListener('click', () => {
+    document.getElementById('photoInput')?.click();
+  });
+  document.getElementById('photoInput')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result;
+      const img = document.getElementById('photoImg');
+      if (img) img.src = dataUrl;
+      const preview = document.getElementById('photoPreview');
+      if (preview) preview.style.display = 'block';
+      window._capturedPhoto = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('photoRemoveBtn')?.addEventListener('click', () => {
+    const preview = document.getElementById('photoPreview');
+    if (preview) preview.style.display = 'none';
+    const input = document.getElementById('photoInput');
+    if (input) input.value = '';
+    window._capturedPhoto = null;
+  });
+
+  // ── Share ──
+  document.getElementById('shareBtn')?.addEventListener('click', async () => {
+    const dist = document.getElementById('sum-distance')?.textContent || '0 km';
+    if (navigator.share) {
+      await navigator.share({ title: 'CyclePlay Ride', text: `I just rode ${dist}!`, url: window.location.href });
+    } else {
+      await navigator.clipboard.writeText(`I just rode ${dist} with CyclePlay!`);
+      window.showAlert('Copied!', 'Ride stats copied to clipboard.', '📋');
+    }
+  });
+
   document.getElementById('home-rides-container').innerHTML = '<div style="text-align:center;color:var(--text3);margin-top:20px;">Loading...</div>';
   
   try {
@@ -538,6 +1138,20 @@ async function init() {
     console.error('Hydration failed:', err);
   }
 
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'background-sync') {
+        if (rideState && rideState.sync) {
+          rideState.sync.retryPending();
+        }
+      }
+    });
+
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage('sync-rides');
+    }
+  }
+
   renderRides();
 }
 
@@ -551,3 +1165,15 @@ if ('serviceWorker' in navigator) {
       .catch(err => console.warn('SW registration failed:', err));
   });
 }
+
+// ── Offline indicator ──
+const offlineBanner = document.getElementById('offlineBanner');
+const updateOnlineStatus = () => {
+  const online = navigator.onLine;
+  if (offlineBanner) offlineBanner.style.display = online ? 'none' : 'block';
+};
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
+
+export { uiCallbacks, renderCalendar, renderBarChart, renderYearTotals };
