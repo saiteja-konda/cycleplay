@@ -1,6 +1,7 @@
 import { RideState, STATES } from './state.js';
 import { getRides, getActiveRide, getRideStats, deleteRide, updateRide } from './api.js';
 import { getWeatherEmoji } from './weather.js';
+import { shareRide } from './share.js';
 
 // ── Live Map State ──
 let mapMode = false;
@@ -24,6 +25,7 @@ const TILE_ATTR = {
 let currentTileLayer = null;
 let summaryPopupPoints = null;
 let detailsPopupPoints = null;
+let _currentSummary = null;
 
 function setTileLayer(map, source) {
   if (currentTileLayer) map.removeLayer(currentTileLayer);
@@ -295,6 +297,22 @@ window.showRideDetails = async function (id) {
             window.showAlert('Error', 'Failed to delete ride. Check your connection.', '<i data-lucide="x"></i>');
           }
         });
+      };
+    }
+
+    // ── Share button ──
+    const detShareBtn = document.getElementById('detShareBtn');
+    if (detShareBtn) {
+      detShareBtn.onclick = () => {
+        shareRide({
+          points: points || [],
+          distance: ride.distance_km || 0,
+          movingTime: ride.moving_seconds || 0,
+          avgSpeed: ride.avg_speed_kmh || 0,
+          date: ride.started_at,
+          rideName: ride.name || '',
+          rideId: ride.id,
+        }).catch(err => console.warn('Share failed:', err));
       };
     }
 
@@ -669,8 +687,15 @@ const uiCallbacks = {
       }
     }
 
+    _currentSummary = summary;
+
     // Refresh ride list after a real ride
     renderRides();
+  },
+
+  onStopError: () => {
+    const stopBtn = document.querySelector('.ctrl-stop');
+    if (stopBtn) stopBtn.disabled = false;
   }
 };
 
@@ -1113,14 +1138,22 @@ async function init() {
     window._capturedPhoto = null;
   });
 
-  // ── Share ──
+  // ── Share (summary view) ──
   document.getElementById('shareBtn')?.addEventListener('click', async () => {
-    const dist = document.getElementById('sum-distance')?.textContent || '0 km';
-    if (navigator.share) {
-      await navigator.share({ title: 'CyclePlay Ride', text: `I just rode ${dist}!`, url: window.location.href });
-    } else {
-      await navigator.clipboard.writeText(`I just rode ${dist} with CyclePlay!`);
-      window.showAlert('Copied!', 'Ride stats copied to clipboard.', '📋');
+    if (_currentSummary) {
+      try {
+        await shareRide({
+          points: _currentSummary._points || [],
+          distance: _currentSummary.distance_km || 0,
+          movingTime: _currentSummary.moving_seconds || 0,
+          avgSpeed: _currentSummary.avg_speed_kmh || 0,
+          date: _currentSummary.started_at,
+          rideName: _currentSummary.name || '',
+          rideId: _currentSummary.id,
+        });
+      } catch (err) {
+        console.warn('Share failed:', err);
+      }
     }
   });
 
@@ -1138,6 +1171,13 @@ async function init() {
     }
   } catch(err) {
     console.error('Hydration failed:', err);
+  }
+
+  // ── Hash-based ride navigation ──
+  const hash = window.location.hash;
+  const rideMatch = hash.match(/^#\/ride\/(\d+)$/);
+  if (rideMatch) {
+    showRideDetails(parseInt(rideMatch[1]));
   }
 
   if ('serviceWorker' in navigator) {

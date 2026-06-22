@@ -128,6 +128,7 @@ beforeAll(async () => {
       <svg id="sum-speed-chart" viewBox="0 0 300 60" preserveAspectRatio="none"></svg>
     </div>
     <div class="view" id="ride-details">
+      <div class="ride-header"><button id="detShareBtn" title="Share ride"></button></div>
       <div class="summary-hero"></div>
       <div class="summary-grid"></div>
       <div id="detailsMapWrap" style="position:relative;">
@@ -435,6 +436,10 @@ describe('Ride details view — ride metadata display', () => {
   });
   it('editRideBtn exists', () => {
     expect(document.getElementById('editRideBtn')).not.toBeNull();
+  });
+  it('detShareBtn exists in ride details view', () => {
+    expect(document.getElementById('detShareBtn')).not.toBeNull();
+    expect(document.getElementById('detShareBtn').title).toBe('Share ride');
   });
   it('edit ride section with all fields exists', () => {
     expect(document.getElementById('editRideSection')).not.toBeNull();
