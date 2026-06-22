@@ -112,23 +112,77 @@ export function generateShareCard({ points, distance, movingTime, avgSpeed, date
   });
 }
 
+async function tryShareWithImage(text, url, file) {
+  try {
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ title: 'CyclePlay Ride', text, url, files: [file] });
+      return true;
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') return true;
+    console.warn('Share with image failed, trying without:', e);
+  }
+  return false;
+}
+
+async function tryShareText(text, url) {
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: 'CyclePlay Ride', text, url });
+      return true;
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') return true;
+    console.warn('Text share failed:', e);
+  }
+  return false;
+}
+
+async function tryClipboard(text, url) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(`${text} ${url}`);
+      if (typeof window.showAlert === 'function') {
+        window.showAlert('Copied!', 'Ride link copied to clipboard.', '📋');
+      }
+      return true;
+    }
+  } catch (e) {
+    console.warn('Clipboard failed:', e);
+  }
+  return false;
+}
+
 export async function shareRide(rideData) {
   const { points, distance, movingTime, avgSpeed, date, rideName, rideId } = rideData;
-  const blob = await generateShareCard({ points, distance, movingTime, avgSpeed, date, rideName });
-  const file = new File([blob], 'ride-share.png', { type: 'image/png' });
   const url = rideId
     ? `${window.location.origin}${window.location.pathname}#/ride/${rideId}`
     : window.location.href;
   const text = `I just rode ${(distance || 0).toFixed(2)} km with CyclePlay!`;
 
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({ title: 'CyclePlay Ride', text, url, files: [file] });
-  } else if (navigator.share) {
-    await navigator.share({ title: 'CyclePlay Ride', text, url });
-  } else {
-    await navigator.clipboard.writeText(`${text} ${url}`);
-    if (typeof window.showAlert === 'function') {
-      window.showAlert('Copied!', 'Ride link copied to clipboard.', '📋');
-    }
+  let success = false;
+
+  // Try with image card
+  try {
+    const blob = await generateShareCard({ points, distance, movingTime, avgSpeed, date, rideName });
+    const file = new File([blob], 'ride-share.png', { type: 'image/png' });
+    success = await tryShareWithImage(text, url, file);
+  } catch (e) {
+    console.warn('Image generation failed:', e);
+  }
+
+  // Try text-only share
+  if (!success) {
+    success = await tryShareText(text, url);
+  }
+
+  // Try clipboard
+  if (!success) {
+    success = await tryClipboard(text, url);
+  }
+
+  // Last resort: show the link
+  if (!success && typeof window.showAlert === 'function') {
+    window.showAlert('Share Ride', `Copy this link:\n${url}`, '🔗');
   }
 }

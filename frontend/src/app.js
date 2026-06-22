@@ -312,7 +312,7 @@ window.showRideDetails = async function (id) {
           date: ride.started_at,
           rideName: ride.name || '',
           rideId: ride.id,
-        }).catch(err => console.warn('Share failed:', err));
+        });
       };
     }
 
@@ -1139,22 +1139,20 @@ async function init() {
   });
 
   // ── Share (summary view) ──
-  document.getElementById('shareBtn')?.addEventListener('click', async () => {
-    if (_currentSummary) {
-      try {
-        await shareRide({
-          points: _currentSummary._points || [],
-          distance: _currentSummary.distance_km || 0,
-          movingTime: _currentSummary.moving_seconds || 0,
-          avgSpeed: _currentSummary.avg_speed_kmh || 0,
-          date: _currentSummary.started_at,
-          rideName: _currentSummary.name || '',
-          rideId: _currentSummary.id,
-        });
-      } catch (err) {
-        console.warn('Share failed:', err);
-      }
+  document.getElementById('shareBtn')?.addEventListener('click', () => {
+    if (!_currentSummary) {
+      window.showAlert('No Data', 'Complete a ride first to share it.', '<i data-lucide="info"></i>');
+      return;
     }
+    shareRide({
+      points: _currentSummary._points || [],
+      distance: _currentSummary.distance_km || 0,
+      movingTime: _currentSummary.moving_seconds || 0,
+      avgSpeed: _currentSummary.avg_speed_kmh || 0,
+      date: _currentSummary.started_at,
+      rideName: _currentSummary.name || '',
+      rideId: _currentSummary.id,
+    });
   });
 
   document.getElementById('home-rides-container').innerHTML = '<div style="text-align:center;color:var(--text3);margin-top:20px;">Loading...</div>';
